@@ -301,12 +301,18 @@ export function Escala() {
       <h1>Escala</h1>
       {err && <ErrorMsg msg={err} />}
       <div className="schedule-toolbar">
-        <label className="area-select">
-          <span>Escala</span>
-          <select value={selArea} onChange={(e) => { setAreaId(e.target.value); setSelected(null) }}>
-            {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </label>
+        <div className="area-switch" role="tablist" aria-label="Escala">
+          <span className="area-switch-label">Escala</span>
+          {areas.map((a) => (
+            <button key={a.id} type="button" role="tab" aria-selected={a.id === selArea}
+              className={`area-tab ${a.id === selArea ? 'active' : ''}`}
+              style={{ '--area-color': a.color } as React.CSSProperties}
+              onClick={() => { setAreaId(a.id); setSelected(null) }}>
+              <span className="area-dot" />
+              {a.name}
+            </button>
+          ))}
+        </div>
         <div className="view-switch">
           {(['day', 'week', 'month'] as View[]).map((v) => (
             <button key={v} className={view === v ? 'active' : ''}
@@ -678,25 +684,6 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
           </button>
         </div>
       </div>
-      <p className="muted">
-        Todas as possibilidades dos FREE — sol = turno de dia, lua = noite.{' '}
-        {shifts[0] && (
-          <>
-            <span className="pill demo-pill icon-pill"
-              style={{ borderColor: 'var(--border-strong)' }}>
-              <ShiftIcon shift={shifts[0]} on={false} />
-            </span>{' '}
-            apagado = disponível (clique para escalar) ·{' '}
-            <span className="pill demo-pill icon-pill"
-              style={{ background: `${shifts[0].color}26`, borderColor: shifts[0].color }}>
-              <ShiftIcon shift={shifts[0]} on />
-            </span>{' '}
-            aceso = escalado ·{' '}
-          </>
-        )}
-        placar = escalas / possibilidades — 2 turnos no mesmo dia contam 2.
-        {sortMode === 'alpha' && ' Ordem fixa A–Z (o painel segue a mesma ordem).'}
-      </p>
       {participants.length > 0 && (
         minSched === maxSched ? (
           <div className="balance-stats">
@@ -735,18 +722,22 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
           <thead>
             <tr>
               <th>FREE</th>
+              <th>Semana</th>
               {dates.map((d) => (
                 <th key={d}>{WEEKDAYS_PT[weekdayIdx(d)]}<br />{fmtShort(d)}</th>
               ))}
-              <th>Semana</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(({ p, possible, scheduled }) => (
               <tr key={p.id}>
-                <td className="nowrap name-cell">
-                  {p.icon} {p.display_name}
-                  <span className="sched-count" title="Vezes escalado nesta semana">{scheduled}</span>
+                <td className="nowrap">{p.icon} {p.display_name}</td>
+                <td className="nowrap week-cell" title="Vezes escalado / possibilidades na semana">
+                  <span className="week-count">{scheduled}</span>
+                  <span className="muted">de {possible}</span>
+                  <span className="bar">
+                    <i style={{ width: `${possible ? Math.min(100, (scheduled / possible) * 100) : 0}%` }} />
+                  </span>
                 </td>
                 {dates.map((d) => (
                   <td key={d}>
@@ -773,12 +764,6 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
                     })}
                   </td>
                 ))}
-                <td className="nowrap">
-                  <span className="muted">de {possible}</span>
-                  <span className="bar">
-                    <i style={{ width: `${possible ? Math.min(100, (scheduled / possible) * 100) : 0}%` }} />
-                  </span>
-                </td>
               </tr>
             ))}
           </tbody>
