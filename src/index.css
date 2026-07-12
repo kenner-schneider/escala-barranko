@@ -485,6 +485,14 @@ table.balance td { vertical-align: middle; }
   color: var(--primary-dark); margin-right: 0.3rem;
 }
 
+/* Equilíbrio: zebra suave (2 tons) + hover nítido --------------- */
+.balance tbody td { transition: background-color 0.15s ease; }
+.balance tbody tr:nth-child(odd) > td { background: #fdf6ea; }
+.balance tbody tr:nth-child(even) > td { background: #f4ead8; }
+.balance tbody tr:hover > td { background: #f8e6d2; }
+/* Primeira coluna (nome) levemente destacada pra ancorar a leitura */
+.balance tbody td:first-child { font-weight: 700; }
+
 /* Banner demo --------------------------------------------------- */
 .demo-banner {
   background: linear-gradient(180deg, #fdf6e0, #f8ecca);
