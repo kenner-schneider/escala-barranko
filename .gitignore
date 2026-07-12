@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.*
+*.local
+.DS_Store
+
+# Auxiliar de deploy manual pelo dashboard (código duplicado, não versionar)
+deploy-dashboard/
