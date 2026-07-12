@@ -69,6 +69,9 @@ Deno.serve(async (req) => {
     .single()
   if (restErr) return fail(`Erro ao criar restaurante: ${restErr.message}`, 500)
 
+  // Escala padrão para o restaurante já funcionar (o gerente renomeia/adiciona em Config).
+  await sb.from('areas').insert({ restaurant_id: rest.id, name: 'Geral', sort_order: 0 })
+
   const temp_password = randomToken(9) // credencial provisória
   const { data: created, error: userErr } = await sb.auth.admin.createUser({
     email: input.admin_email,

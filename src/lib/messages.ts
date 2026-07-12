@@ -1,10 +1,10 @@
 // Mensagem-resumo para o grupo de WhatsApp.
 // PRIVACIDADE: usa somente display_name — nunca telefone ou nome completo.
 import { dayLabelPT, hhmm } from './dates'
-import type { Person, ScheduleEntry, Shift } from './types'
+import type { Area, Person, ScheduleEntry, Shift } from './types'
 
 export const DEFAULT_TEMPLATE =
-  '📋 Escala {dia} — {turno} ({horario}):\n{lista}\nConvocados: confirmem com 👍 aqui no grupo.'
+  '📋 Escala {dia} — {turno} ({horario}):\n{lista}'
 
 export function buildMessage(opts: {
   template?: string
@@ -12,9 +12,13 @@ export function buildMessage(opts: {
   shifts: Shift[]
   entries: ScheduleEntry[]
   people: Person[]
+  areas?: Area[]
 }): string {
   const template = opts.template?.trim() || DEFAULT_TEMPLATE
   const nameOf = new Map(opts.people.map((p) => [p.id, p.display_name]))
+  const areaOf = new Map((opts.areas ?? []).map((a) => [a.id, a]))
+  // Só rotula por escala quando há mais de uma ativa (restaurante com escala única fica limpo).
+  const multiArea = (opts.areas ?? []).filter((a) => a.active).length > 1
   const orderedShifts = [...opts.shifts].sort((a, b) => a.start_time.localeCompare(b.start_time))
   const blocks: string[] = []
 
@@ -25,7 +29,24 @@ export function buildMessage(opts: {
           (e.status === 'convoked' || e.status === 'confirmed'),
       )
       if (convoked.length === 0) continue
-      const lista = convoked.map((e) => `• ${nameOf.get(e.person_id) ?? '?'}`).join('\n')
+
+      let lista: string
+      if (multiArea) {
+        // Agrupa por escala (setor), na ordem de sort_order.
+        const byArea = new Map<string, string[]>()
+        for (const e of convoked) {
+          const arr = byArea.get(e.area_id) ?? []
+          arr.push(nameOf.get(e.person_id) ?? '?')
+          byArea.set(e.area_id, arr)
+        }
+        lista = [...byArea.keys()]
+          .sort((a, b) => (areaOf.get(a)?.sort_order ?? 0) - (areaOf.get(b)?.sort_order ?? 0))
+          .map((aid) => `${areaOf.get(aid)?.name ?? 'Escala'}: ${byArea.get(aid)!.join(', ')}`)
+          .join('\n')
+      } else {
+        lista = convoked.map((e) => `• ${nameOf.get(e.person_id) ?? '?'}`).join('\n')
+      }
+
       blocks.push(
         template
           .replaceAll('{dia}', dayLabelPT(date))

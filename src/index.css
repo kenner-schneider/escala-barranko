@@ -445,6 +445,29 @@ table.balance td { vertical-align: middle; }
 .nowrap { white-space: nowrap; }
 .cell-avail { display: block; font-size: 0.68rem; color: var(--muted); margin-top: 0.15rem; font-weight: 600; }
 
+/* Seletor de Escala (setor) na toolbar --------------------------- */
+.area-select { display: inline-flex; align-items: center; gap: 0.4rem; }
+.area-select > span {
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 0.72rem; font-weight: 800;
+}
+.area-select select {
+  padding: 0.42rem 0.7rem; border: 1px solid var(--border-strong); border-radius: 10px;
+  font-family: var(--font-body); font-size: 0.88rem; font-weight: 700; color: var(--text);
+  background: var(--surface); box-shadow: inset 0 1.5px 3px rgb(43 33 24 / 0.06); cursor: pointer;
+}
+
+/* Equilíbrio: contagem ao lado do nome + zebra discreta ---------- */
+.balance .name-cell { display: flex; align-items: center; gap: 0.4rem; }
+.sched-count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.35rem;
+  padding: 0.05rem 0.35rem; border-radius: 999px; font-size: 0.78rem; font-weight: 800;
+  font-family: var(--font-head); color: var(--primary-dark);
+  background: var(--primary-soft); border: 1px solid #ecc9b4;
+}
+table.balance tbody tr:nth-child(odd) > td { background: #fbf4e8; }
+table.balance tbody tr:nth-child(even) > td { background: #f3ece0; }
+
 /* Banner demo --------------------------------------------------- */
 .demo-banner {
   background: linear-gradient(180deg, #fdf6e0, #f8ecca);

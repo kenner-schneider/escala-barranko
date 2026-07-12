@@ -11,7 +11,7 @@ import {
 } from '../../lib/dates'
 import { buildMessage } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
-import type { Availability, MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
+import type { Area, Availability, MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
 
 type View = 'day' | 'week' | 'month'
 // 'fair' = quem menos trabalhou primeiro (reordena ao escalar) · 'alpha' = ordem fixa A–Z
@@ -22,6 +22,7 @@ export function Escala() {
   const qc = useQueryClient()
   const [view, setView] = useState<View>('week')
   const [anchor, setAnchor] = useState(todaySP())
+  const [areaId, setAreaId] = useState<string>('')
   const [selected, setSelected] = useState<{ date: string; shiftId: string } | null>(null)
   const [showBalance, setShowBalance] = useState(true)
   const [sortMode, setSortModeState] = useState<SortMode>(
@@ -74,6 +75,15 @@ export function Escala() {
       return data as Person[]
     },
   })
+  const areasQ = useQuery({
+    queryKey: ['areas', restaurant.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('areas').select('*')
+        .eq('restaurant_id', restaurant.id).eq('active', true).order('sort_order')
+      if (error) throw error
+      return data as Area[]
+    },
+  })
   const availQ = useQuery({
     queryKey: ['availability', restaurant.id, range.start, range.end],
     queryFn: async () => {
@@ -106,6 +116,9 @@ export function Escala() {
   const availability = availQ.data ?? []
   const entries = entriesQ.data ?? []
   const counts = countsQ.data ?? []
+  const areas = areasQ.data ?? []
+  // Escala (setor) selecionada — cai na 1ª ativa se nenhuma escolhida ou se a escolhida sumiu.
+  const selArea = areaId && areas.some((a) => a.id === areaId) ? areaId : (areas[0]?.id ?? '')
   const personOf = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
 
   const invalidate = () => {
@@ -116,14 +129,24 @@ export function Escala() {
   // --- Mutations ---
   const addEntry = useMutation({
     mutationFn: async (v: { personId: string; date: string; shiftId: string }) => {
+      if (!selArea) return
+      // Exclusividade por dia+turno: cada pessoa fica numa só escala naquele turno.
       const existing = entries.find(
         (e) => e.person_id === v.personId && e.date === v.date && e.shift_id === v.shiftId,
       )
-      if (existing && existing.status !== 'declined') return // já está na célula
-      const { error } = await supabase.from('schedule_entries').upsert({
+      if (existing) {
+        if (existing.area_id === selArea && existing.status !== 'declined') return // já aqui
+        // Move para a escala atual (mantém o status; recusa volta a rascunho).
+        const status = existing.status === 'declined' ? 'draft' : existing.status
+        const { error } = await supabase.from('schedule_entries')
+          .update({ area_id: selArea, status, updated_by: profile.id }).eq('id', existing.id)
+        if (error) throw error
+        return
+      }
+      const { error } = await supabase.from('schedule_entries').insert({
         restaurant_id: restaurant.id, person_id: v.personId, date: v.date,
-        shift_id: v.shiftId, status: 'draft', convoked_at: null, updated_by: profile.id,
-      }, { onConflict: 'person_id,date,shift_id' })
+        shift_id: v.shiftId, area_id: selArea, status: 'draft', updated_by: profile.id,
+      })
       if (error) throw error
     },
     onSuccess: invalidate,
@@ -139,16 +162,6 @@ export function Escala() {
     onError: () => setErr('Não foi possível remover.'),
   })
 
-  const setStatus = useMutation({
-    mutationFn: async (v: { id: string; status: 'confirmed' | 'declined' | 'convoked' }) => {
-      const { error } = await supabase.from('schedule_entries')
-        .update({ status: v.status, updated_by: profile.id }).eq('id', v.id)
-      if (error) throw error
-    },
-    onSuccess: invalidate,
-    onError: () => setErr('Não foi possível atualizar o status.'),
-  })
-
   const publish = useMutation({
     mutationFn: async (dates: string[]) => {
       const { error } = await supabase.from('schedule_entries')
@@ -162,7 +175,7 @@ export function Escala() {
         dates.includes(e.date) && e.status === 'draft' ? { ...e, status: 'convoked' as const } : e)
       setPublishMsg(buildMessage({
         template: restaurant.settings.message_template,
-        dates, shifts, entries: updated, people,
+        dates, shifts, entries: updated, people, areas,
       }))
       invalidate()
     },
@@ -171,6 +184,7 @@ export function Escala() {
 
   const applyFixed = useMutation({
     mutationFn: async () => {
+      if (!selArea) return
       const rows: Record<string, unknown>[] = []
       for (const date of gridDates) {
         const key = FIXED_KEYS[weekdayIdx(date)]
@@ -180,7 +194,7 @@ export function Escala() {
             if (entries.some((e) => e.person_id === p.id && e.date === date && e.shift_id === shiftId)) continue
             rows.push({
               restaurant_id: restaurant.id, person_id: p.id, date,
-              shift_id: shiftId, status: 'draft', updated_by: profile.id,
+              shift_id: shiftId, area_id: selArea, status: 'draft', updated_by: profile.id,
             })
           }
         }
@@ -225,9 +239,14 @@ export function Escala() {
     const availSet = new Set(availability
       .filter((a) => a.date === selected.date && a.shift_id === selected.shiftId)
       .map((a) => a.person_id))
-    const taken = new Set(entries
-      .filter((e) => e.date === selected.date && e.shift_id === selected.shiftId && e.status !== 'declined')
-      .map((e) => e.person_id))
+    const slotEntries = entries.filter(
+      (e) => e.date === selected.date && e.shift_id === selected.shiftId && e.status !== 'declined')
+    const taken = new Set(slotEntries.map((e) => e.person_id))
+    // Já escalados em OUTRA escala neste dia+turno — oferecer "mover pra cá".
+    const otherArea = slotEntries
+      .filter((e) => e.area_id !== selArea)
+      .map((e) => ({ person: personOf.get(e.person_id), area: areas.find((a) => a.id === e.area_id) }))
+      .filter((x): x is { person: Person; area: Area | undefined } => !!x.person)
     const month = monthOf(selected.date)
     // Distribuição justa: menos escalado NA SEMANA primeiro; empate decide pelo mês.
     // Em ordem alfabética a lista fica estável (não reordena ao escalar).
@@ -241,9 +260,9 @@ export function Escala() {
             countOf(a.id, month) - countOf(b.id, month) ||
             a.display_name.localeCompare(b.display_name))
     const clts = people.filter((p) => p.type === 'clt' && !taken.has(p.id))
-    return { frees, clts, month }
+    return { frees, clts, month, otherArea }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, availability, entries, people, counts, view, sortMode])
+  }, [selected, availability, entries, people, counts, view, sortMode, selArea, areas])
 
   function onDragEnd(ev: DragEndEvent) {
     const activeId = String(ev.active.id)
@@ -261,10 +280,13 @@ export function Escala() {
     else setAnchor(addMonths(monthOf(anchor), dir) + '-15')
   }
 
-  if (shiftsQ.isLoading || peopleQ.isLoading || entriesQ.isLoading || availQ.isLoading) return <Loading />
+  if (shiftsQ.isLoading || peopleQ.isLoading || entriesQ.isLoading || availQ.isLoading || areasQ.isLoading) return <Loading />
 
   if (shifts.length === 0) {
     return <Empty msg="Cadastre pelo menos 1 turno em Config para montar a escala." />
+  }
+  if (areas.length === 0) {
+    return <Empty msg="Cadastre pelo menos 1 escala (Salão, Cozinha…) em Config para montar a escala." />
   }
 
   const rangeLabel = view === 'day' ? dayLabelPT(anchor)
@@ -279,6 +301,12 @@ export function Escala() {
       <h1>Escala</h1>
       {err && <ErrorMsg msg={err} />}
       <div className="schedule-toolbar">
+        <label className="area-select">
+          <span>Escala</span>
+          <select value={selArea} onChange={(e) => { setAreaId(e.target.value); setSelected(null) }}>
+            {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </label>
         <div className="view-switch">
           {(['day', 'week', 'month'] as View[]).map((v) => (
             <button key={v} className={view === v ? 'active' : ''}
@@ -347,11 +375,10 @@ export function Escala() {
                           isSelected={selected?.date === date && selected.shiftId === shift.id}
                           onSelect={() => setSelected({ date, shiftId: shift.id })}>
                           {entries
-                            .filter((e) => e.date === date && e.shift_id === shift.id)
+                            .filter((e) => e.date === date && e.shift_id === shift.id && e.area_id === selArea)
                             .map((e) => (
                               <EntryChip key={e.id} entry={e} person={personOf.get(e.person_id)}
-                                onRemove={() => removeEntry.mutate(e.id)}
-                                onStatus={(status) => setStatus.mutate({ id: e.id, status })} />
+                                onRemove={() => removeEntry.mutate(e.id)} />
                             ))}
                           {availCount(date, shift.id) > 0 && (
                             <span className="cell-avail">{availCount(date, shift.id)} disp.</span>
@@ -385,7 +412,8 @@ export function Escala() {
                   aria-label="Fechar painel">✕</button>
               </div>
               <p className="muted">
-                FREE disponíveis · {sortMode === 'alpha' ? 'ordem A–Z' : 'quem menos trabalhou primeiro'}
+                Escalando em <strong>{areas.find((a) => a.id === selArea)?.name}</strong> · FREE disponíveis ·{' '}
+                {sortMode === 'alpha' ? 'ordem A–Z' : 'quem menos trabalhou primeiro'}
               </p>
               {panel.frees.length === 0 && <Empty msg="Nenhum FREE disponível neste turno." />}
               <div className="person-list">
@@ -403,6 +431,27 @@ export function Escala() {
                   )
                 })}
               </div>
+              {panel.otherArea.length > 0 && (
+                <>
+                  <h3 style={{ marginTop: '.5rem' }}>Em outra escala neste turno</h3>
+                  <div className="person-list">
+                    {panel.otherArea.map(({ person, area }) => (
+                      <div key={person.id} className="person-row">
+                        <span>{person.icon ?? '👤'}</span>
+                        <span className="grow">{person.display_name}</span>
+                        <span className="badge" style={area ? { borderColor: area.color } : undefined}>
+                          {area?.name ?? '—'}
+                        </span>
+                        <button className="btn small"
+                          title={`Mover ${person.display_name} para ${areas.find((a) => a.id === selArea)?.name}`}
+                          onClick={() => addEntry.mutate({ personId: person.id, date: selected.date, shiftId: selected.shiftId })}>
+                          mover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
               <h3 style={{ marginTop: '.5rem' }}>CLT (atribuição direta)</h3>
               <div className="person-list">
                 {panel.clts.map((p) => (
@@ -477,11 +526,10 @@ const STATUS_TITLE: Record<string, string> = {
   declined: 'Recusou — vaga reaberta',
 }
 
-function EntryChip({ entry, person, onRemove, onStatus }: {
+function EntryChip({ entry, person, onRemove }: {
   entry: ScheduleEntry
   person: Person | undefined
   onRemove: () => void
-  onStatus: (s: 'confirmed' | 'declined' | 'convoked') => void
 }) {
   if (!person) return null
   return (
@@ -489,37 +537,12 @@ function EntryChip({ entry, person, onRemove, onStatus }: {
       onClick={(e) => e.stopPropagation()}>
       {person.icon ?? '👤'} {person.display_name}
       <span className="chip-actions">
-        {entry.status === 'draft' && (
-          <button onClick={onRemove} title="Remover do rascunho">✕</button>
-        )}
-        {entry.status === 'convoked' && (
-          <>
-            <button onClick={() => onStatus('confirmed')} title="Marcar confirmado">✔</button>
-            <button onClick={() => onStatus('declined')} title="Marcar recusa (reabre a vaga)">✖</button>
-          </>
-        )}
-        {entry.status === 'confirmed' && (
-          <>
-            <span title="Confirmado">✅</span>
-            <button onClick={() => onStatus('convoked')}
-              title="Desfazer confirmação (volta a convocado)">↩</button>
-            <button onClick={() => onStatus('declined')}
-              title="Marcar recusa (reabre a vaga)">✖</button>
-          </>
-        )}
-        {entry.status === 'declined' && (
-          <>
-            <button onClick={() => onStatus('convoked')}
-              title="Desfazer recusa (volta a convocado)">↩</button>
-            <button
-              onClick={() => {
-                if (confirm(`Limpar a recusa de ${person.display_name} desta célula? Ela deixará de contar nos relatórios do mês.`)) {
-                  onRemove()
-                }
-              }}
-              title="Limpar da célula">✕</button>
-          </>
-        )}
+        <button
+          title="Remover da escala"
+          onClick={() => {
+            if (entry.status === 'draft' ||
+              confirm(`Remover ${person.display_name} da escala publicada?`)) onRemove()
+          }}>✕</button>
       </span>
     </span>
   )
@@ -721,7 +744,10 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
           <tbody>
             {rows.map(({ p, possible, scheduled }) => (
               <tr key={p.id}>
-                <td className="nowrap">{p.icon} {p.display_name}</td>
+                <td className="nowrap name-cell">
+                  {p.icon} {p.display_name}
+                  <span className="sched-count" title="Vezes escalado nesta semana">{scheduled}</span>
+                </td>
                 {dates.map((d) => (
                   <td key={d}>
                     {shifts.map((s) => {
@@ -748,7 +774,7 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
                   </td>
                 ))}
                 <td className="nowrap">
-                  <strong>{scheduled}</strong>/{possible}
+                  <span className="muted">de {possible}</span>
                   <span className="bar">
                     <i style={{ width: `${possible ? Math.min(100, (scheduled / possible) * 100) : 0}%` }} />
                   </span>

@@ -5,7 +5,7 @@ import { ErrorMsg, Loading } from '../../components/ui'
 import { hhmm } from '../../lib/dates'
 import { DEFAULT_TEMPLATE } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
-import type { Shift } from '../../lib/types'
+import type { Area, Shift } from '../../lib/types'
 
 export function Config() {
   const { restaurant, reloadRestaurant } = useAdmin()
@@ -70,9 +70,45 @@ export function Config() {
     setEditing(null)
   }
 
-  if (shiftsQ.isLoading) return <Loading />
+  // --- Escalas (setores) ---
+  const areasQ = useQuery({
+    queryKey: ['areas', restaurant.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('areas').select('*')
+        .eq('restaurant_id', restaurant.id).eq('active', true)
+        .order('sort_order')
+      if (error) throw error
+      return data as Area[]
+    },
+  })
+
+  const upsertArea = useMutation({
+    mutationFn: async (a: Partial<Area>) => {
+      const { error } = a.id
+        ? await supabase.from('areas').update(a).eq('id', a.id)
+        : await supabase.from('areas').insert({
+            ...a, restaurant_id: restaurant.id, sort_order: areasQ.data?.length ?? 0,
+          })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['areas'] }),
+    onError: () => setErr('Não foi possível salvar a escala.'),
+  })
+
+  const [editingArea, setEditingArea] = useState<Partial<Area> | null>(null)
+
+  function submitArea(e: FormEvent) {
+    e.preventDefault()
+    if (!editingArea?.name) return
+    upsertArea.mutate(editingArea)
+    setEditingArea(null)
+  }
+
+  if (shiftsQ.isLoading || areasQ.isLoading) return <Loading />
 
   const shifts = shiftsQ.data ?? []
+  const areas = areasQ.data ?? []
 
   return (
     <div>
@@ -134,6 +170,61 @@ export function Config() {
             </div>
             <button className="btn primary">{editing.id ? 'Salvar turno' : 'Criar turno'}</button>{' '}
             <button type="button" className="btn" onClick={() => setEditing(null)}>Cancelar</button>
+          </form>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>Escalas</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Tipos de escala do restaurante — ex.: Salão, Cozinha, Bar. No menu Escala você escolhe
+          qual está montando; cada pessoa fica em uma escala por dia + turno.
+        </p>
+        {areas.length === 0 && <div className="empty">Nenhuma escala. Cadastre ao menos 1 para montar a escala.</div>}
+        <table className="simple">
+          <tbody>
+            {areas.map((a) => (
+              <tr key={a.id}>
+                <td><span className="chip" style={{ borderColor: a.color }}>{a.name}</span></td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className="btn small" onClick={() => setEditingArea(a)}>Editar</button>{' '}
+                  <button
+                    className="btn small danger"
+                    onClick={() => {
+                      if (areas.length <= 1) return setErr('É preciso manter pelo menos 1 escala ativa.')
+                      if (confirm(`Desativar a escala "${a.name}"? Ela some das novas montagens; o histórico é preservado.`)) {
+                        upsertArea.mutate({ id: a.id, active: false })
+                      }
+                    }}
+                  >
+                    Desativar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!editingArea && (
+          <button className="btn" style={{ marginTop: '.6rem' }}
+            onClick={() => setEditingArea({ name: '', color: '#6366f1' })}>
+            + Nova escala
+          </button>
+        )}
+        {editingArea && (
+          <form onSubmit={submitArea} style={{ marginTop: '.75rem' }}>
+            <div className="form-row">
+              <label className="field">Nome
+                <input value={editingArea.name ?? ''} required autoFocus
+                  placeholder="Ex.: Bar"
+                  onChange={(e) => setEditingArea({ ...editingArea, name: e.target.value })} />
+              </label>
+              <label className="field">Cor
+                <input type="color" value={editingArea.color ?? '#6366f1'}
+                  onChange={(e) => setEditingArea({ ...editingArea, color: e.target.value })} />
+              </label>
+            </div>
+            <button className="btn primary">{editingArea.id ? 'Salvar escala' : 'Criar escala'}</button>{' '}
+            <button type="button" className="btn" onClick={() => setEditingArea(null)}>Cancelar</button>
           </form>
         )}
       </div>

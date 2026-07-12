@@ -10,6 +10,9 @@ const ADMIN = '22222222-2222-2222-2222-222222222222'
 const ROOT = '33333333-3333-3333-3333-333333333333'
 const S1 = 'aaaaaaaa-0000-0000-0000-000000000001'
 const S2 = 'aaaaaaaa-0000-0000-0000-000000000002'
+const A1 = 'dddddddd-0000-0000-0000-000000000001' // Salão
+const A2 = 'dddddddd-0000-0000-0000-000000000002' // Cozinha
+const A3 = 'dddddddd-0000-0000-0000-000000000003' // Bar
 const P = (n: number) => `ffffffff-0000-0000-0000-${String(n).padStart(12, '0')}`
 const C = (n: number) => `cccccccc-0000-0000-0000-00000000000${n}`
 
@@ -29,6 +32,11 @@ const db: Record<string, Row[]> = {
   shifts: [
     { id: S1, restaurant_id: R, name: 'Meio-dia', start_time: '11:00', end_time: '15:00', color: '#f59e0b', active: true },
     { id: S2, restaurant_id: R, name: 'Noite', start_time: '18:00', end_time: '23:00', color: '#3b82f6', active: true },
+  ],
+  areas: [
+    { id: A1, restaurant_id: R, name: 'Salão', color: '#3b82f6', sort_order: 0, active: true },
+    { id: A2, restaurant_id: R, name: 'Cozinha', color: '#f59e0b', sort_order: 1, active: true },
+    { id: A3, restaurant_id: R, name: 'Bar', color: '#8b5cf6', sort_order: 2, active: true },
   ],
   people: [
     { id: C(1), restaurant_id: R, type: 'clt', full_name: 'Carlos Pereira', display_name: 'Carlos', icon: '👨‍🍳', phone: null, monthly_limit: null, fixed_days: { mon: [S1], wed: [S1], fri: [S1] }, active: true },
@@ -75,21 +83,20 @@ for (let i = 1; i <= 14; i++) {
 }
 
 // Escala de exemplo: passado (p/ contadores) + semana atual com vários status
-const entry = (person_id: string, date: string, shift_id: string, status: string): Row => ({
-  id: uuid(), restaurant_id: R, person_id, date, shift_id, status,
+const entry = (person_id: string, date: string, shift_id: string, status: string, area_id = A1): Row => ({
+  id: uuid(), restaurant_id: R, person_id, date, shift_id, area_id, status,
   convoked_at: status === 'draft' ? null : new Date().toISOString(),
   updated_by: ADMIN, updated_at: new Date().toISOString(),
 })
 db.schedule_entries.push(
-  entry(P(1), addDays(today, -5), S2, 'confirmed'),
-  entry(P(1), addDays(today, -3), S1, 'confirmed'),
-  entry(P(2), addDays(today, -3), S2, 'confirmed'),
-  entry(P(3), addDays(today, -2), S1, 'declined'),
-  entry(P(1), addDays(today, 1), S2, 'convoked'),
-  entry(P(2), addDays(today, 1), S2, 'confirmed'),
-  entry(P(3), addDays(today, 2), S1, 'convoked'),
-  entry(C(1), addDays(today, 1), S1, 'draft'),
-  entry(P(5), addDays(today, 2), S1, 'draft'),
+  entry(P(1), addDays(today, -5), S2, 'convoked', A3),
+  entry(P(1), addDays(today, -3), S1, 'convoked', A1),
+  entry(P(2), addDays(today, -3), S2, 'convoked', A2),
+  entry(P(1), addDays(today, 1), S2, 'convoked', A1),
+  entry(P(2), addDays(today, 1), S2, 'convoked', A2),
+  entry(P(3), addDays(today, 2), S1, 'convoked', A3),
+  entry(C(1), addDays(today, 1), S1, 'draft', A2),
+  entry(P(5), addDays(today, 2), S1, 'draft', A1),
 )
 
 function computeCounts(): Row[] {

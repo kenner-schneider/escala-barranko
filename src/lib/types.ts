@@ -45,12 +45,23 @@ export interface Person {
 
 export type EntryStatus = 'draft' | 'convoked' | 'confirmed' | 'declined'
 
+// "Escala" (setor): bar, cozinha, atendimento... Um eixo separado do turno.
+export interface Area {
+  id: string
+  restaurant_id: string
+  name: string
+  color: string
+  sort_order: number
+  active: boolean
+}
+
 export interface ScheduleEntry {
   id: string
   restaurant_id: string
   person_id: string
   date: string
   shift_id: string
+  area_id: string
   status: EntryStatus
   convoked_at: string | null
   updated_by: string | null
