@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdmin } from '../../components/AdminShell'
 import { CopyButton, Empty, ErrorMsg, Loading, Modal } from '../../components/ui'
-import { FIXED_KEYS, WEEKDAYS_PT, monthOf, todaySP } from '../../lib/dates'
+import { FIXED_KEYS, WEEKDAYS_PT, hhmm, monthOf, todaySP } from '../../lib/dates'
 import { adminToken, callFn, supabase } from '../../lib/supabase'
 import type { MonthlyCount, Person, Shift } from '../../lib/types'
 import { PhoneIcon, UserIcon } from '../../components/icons'
@@ -294,9 +294,22 @@ function PersonForm({ person, shifts, onSave, onClose }: {
         {!isFree && shifts.length > 0 && (
           <div style={{ marginBottom: '.75rem' }}>
             <strong style={{ fontSize: '.85rem' }}>Dias fixos (pré-preenchem a escala)</strong>
-            <table className="simple">
+            <table className="simple dias-fixos">
               <thead>
-                <tr><th></th>{shifts.map((s) => <th key={s.id}>{s.name}</th>)}</tr>
+                <tr>
+                  <th></th>
+                  {shifts.map((s) => (
+                    <th key={s.id}>
+                      <span className="dias-fixos-th">
+                        <span className="lbl" style={{ '--shift-color': s.color } as React.CSSProperties}
+                          title={s.name}>
+                          {((s.label ?? '').trim() || s.name.charAt(0)).toUpperCase().slice(0, 3)}
+                        </span>
+                        <span className="hr">{hhmm(s.start_time)}–{hhmm(s.end_time)}</span>
+                      </span>
+                    </th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
                 {WEEK_ORDER.map((dow) => (

@@ -469,6 +469,14 @@ table.balance tbody tr:last-child td{border-bottom:none}
 .pres-btn.faltou.active{background:var(--danger-soft); border-color:var(--danger); color:var(--chip-declined)}
 .presenca-row.declined .presenca-who .grow{text-decoration:line-through; opacity:.7}
 
+/* ---------- Cabeçalho de turno no cadastro CLT (dias fixos) - */
+.dias-fixos thead th{text-align:center; vertical-align:bottom}
+.dias-fixos-th{display:inline-flex; flex-direction:column; align-items:center; gap:.22rem}
+.dias-fixos-th .lbl{display:inline-flex; align-items:center; justify-content:center; min-width:28px; padding:.12rem .35rem;
+  border-radius:8px; border:1.6px solid var(--shift-color); background:color-mix(in srgb, var(--shift-color) 18%, transparent);
+  color:var(--ink-strong); font-family:var(--font); font-weight:700; font-size:.82rem; text-transform:none; letter-spacing:0}
+.dias-fixos-th .hr{font-family:var(--mono); font-size:.62rem; font-weight:500; text-transform:none; letter-spacing:0; color:var(--dim); white-space:nowrap}
+
 /* ---------- Banner demo ------------------------------------ */
 .demo-banner{position:relative; z-index:3; display:flex; align-items:center; justify-content:center; gap:.4rem;
   background:var(--accent-soft); border-bottom:1px solid var(--accent-line); color:var(--accent-ink);
