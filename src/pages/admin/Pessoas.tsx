@@ -5,6 +5,7 @@ import { CopyButton, Empty, ErrorMsg, Loading, Modal } from '../../components/ui
 import { FIXED_KEYS, WEEKDAYS_PT, monthOf, todaySP } from '../../lib/dates'
 import { adminToken, callFn, supabase } from '../../lib/supabase'
 import type { MonthlyCount, Person, Shift } from '../../lib/types'
+import { PhoneIcon, UserIcon } from '../../components/icons'
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] // seg..dom
 
@@ -149,7 +150,7 @@ export function Pessoas() {
           return (
             <div className="card person-card" key={p.id}>
               <div className="head">
-                <span className="icon">{p.icon ?? '👤'}</span>
+                <span className="icon">{p.icon ?? <UserIcon size={20} />}</span>
                 <div>
                   <strong>{p.display_name}</strong>
                   <div className="muted">{p.full_name}</div>
@@ -161,7 +162,7 @@ export function Pessoas() {
                     title="Alerta gerencial — não é parecer trabalhista">
                     {worked}/{limitOf(p)} dias no mês
                   </span>{' '}
-                  <span className="muted">📱 {p.phone}</span>
+                  <span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem' }}><PhoneIcon size={13} /> {p.phone}</span>
                 </div>
               )}
               {p.type === 'clt' && (
@@ -205,7 +206,7 @@ export function Pessoas() {
           {inactive.map((p) => (
             <div className="card person-card inactive" key={p.id}>
               <div className="head">
-                <span className="icon">{p.icon ?? '👤'}</span>
+                <span className="icon">{p.icon ?? <UserIcon size={20} />}</span>
                 <div>
                   <strong>{p.display_name}</strong>
                   <div className="muted">{p.full_name}</div>

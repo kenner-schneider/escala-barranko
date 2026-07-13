@@ -6,6 +6,7 @@ import { hhmm } from '../../lib/dates'
 import { DEFAULT_TEMPLATE } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
 import type { Area, Shift } from '../../lib/types'
+import { CheckIcon } from '../../components/icons'
 
 export function Config() {
   const { restaurant, reloadRestaurant } = useAdmin()
@@ -252,7 +253,7 @@ export function Config() {
       </div>
 
       <button className="btn primary" onClick={() => saveSettings.mutate()} disabled={saveSettings.isPending}>
-        {saved ? '✓ Salvo!' : 'Salvar configurações'}
+        {saved ? <><CheckIcon size={16} /> Salvo!</> : 'Salvar configurações'}
       </button>
     </div>
   )

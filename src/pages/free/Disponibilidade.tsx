@@ -5,6 +5,7 @@ import { addDays, dayLabelPT, hhmm, isOpenForAvailability, todaySP } from '../..
 import { freeClaims, getFreeJwt } from '../../lib/freeAuth'
 import { freeSupabase } from '../../lib/supabase'
 import type { Availability, Restaurant, Shift } from '../../lib/types'
+import { LockIcon } from '../../components/icons'
 
 const DAYS_AHEAD = 21
 
@@ -66,7 +67,7 @@ export function Disponibilidade() {
     <div>
       <h1>Minha disponibilidade</h1>
       <p className="muted">
-        Toque no turno para marcar ou desmarcar. Dias travados 🔒 já fecharam
+        Toque no turno para marcar ou desmarcar. Dias travados já fecharam
         (antecedência de {lead}h) — fale com o gerente se precisar mudar.
       </p>
       {err && <ErrorMsg msg={err} />}
@@ -79,7 +80,7 @@ export function Disponibilidade() {
           <div className="card day-card" key={date}>
             <div className="day-label">
               {dayLabelPT(date)}
-              {!open && <div className="locked-tag">🔒 fechado</div>}
+              {!open && <div className="locked-tag"><LockIcon size={13} /> fechado</div>}
             </div>
             <div className="shifts">
               {shifts.map((s) => {

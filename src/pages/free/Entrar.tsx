@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ErrorMsg } from '../../components/ui'
 import { getFreeJwt, setFreeJwt } from '../../lib/freeAuth'
 import { callFn } from '../../lib/supabase'
+import { CalendarIcon } from '../../components/icons'
 
 export function Entrar() {
   const navigate = useNavigate()
@@ -32,7 +33,7 @@ export function Entrar() {
 
   return (
     <div className="auth-box card">
-      <h1>🗓️ Minha escala</h1>
+      <h1 style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}><CalendarIcon size={22} /> Minha escala</h1>
       <form onSubmit={submit}>
         <label className="field">Telefone (com DDD)
           <input inputMode="numeric" value={phone} placeholder="11999998888"

@@ -12,6 +12,10 @@ import {
 import { buildMessage } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
 import type { Area, Availability, MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
+import {
+  ArrowDownIcon, ArrowUpIcon, BarChartIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon,
+  PlusIcon, ScaleIcon, UserIcon, XIcon,
+} from '../../components/icons'
 
 type View = 'day' | 'week' | 'month'
 // 'fair' = quem menos trabalhou primeiro (reordena ao escalar) · 'alpha' = ordem fixa A–Z
@@ -321,14 +325,14 @@ export function Escala() {
             </button>
           ))}
         </div>
-        <button className="btn small" onClick={() => navigate(-1)}>←</button>
+        <button className="glass icon" onClick={() => navigate(-1)} aria-label="Anterior"><ChevronLeftIcon size={19} /></button>
         <strong>{rangeLabel}</strong>
-        <button className="btn small" onClick={() => navigate(1)}>→</button>
+        <button className="glass icon" onClick={() => navigate(1)} aria-label="Próximo"><ChevronRightIcon size={19} /></button>
         <button className="btn small" onClick={() => { setAnchor(todaySP()); setSelected(null) }}>Hoje</button>
         <div className="spacer" />
         {view === 'week' && (
           <button className="btn" onClick={() => setShowBalance(!showBalance)}>
-            {showBalance ? 'Ocultar equilíbrio' : '⚖️ Equilíbrio'}
+            {showBalance ? 'Ocultar equilíbrio' : <><ScaleIcon size={17} /> Equilíbrio</>}
           </button>
         )}
         {view !== 'month' && (
@@ -415,7 +419,7 @@ export function Escala() {
                   Publicar {dayLabelPT(selected.date)}
                 </button>
                 <button className="btn-icon" onClick={() => setSelected(null)}
-                  aria-label="Fechar painel">✕</button>
+                  aria-label="Fechar painel"><XIcon size={18} /></button>
               </div>
               <p className="muted">
                 Escalando em <strong>{areas.find((a) => a.id === selArea)?.name}</strong> · FREE disponíveis ·{' '}
@@ -443,7 +447,7 @@ export function Escala() {
                   <div className="person-list">
                     {panel.otherArea.map(({ person, area }) => (
                       <div key={person.id} className="person-row">
-                        <span>{person.icon ?? '👤'}</span>
+                        <span>{person.icon ?? <UserIcon size={16} />}</span>
                         <span className="grow">{person.display_name}</span>
                         <span className="badge" style={area ? { borderColor: area.color } : undefined}>
                           {area?.name ?? '—'}
@@ -516,11 +520,11 @@ function DraggablePerson({ person, onAdd, children }: {
     : undefined
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} className="person-row" style={style}>
-      <span>{person.icon ?? '👤'}</span>
+      <span>{person.icon ?? <UserIcon size={16} />}</span>
       <span className="grow">{person.display_name}</span>
       {children}
       <button className="btn small" onPointerDown={(e) => e.stopPropagation()} onClick={onAdd}
-        aria-label={`Escalar ${person.display_name}`}>+</button>
+        aria-label={`Escalar ${person.display_name}`}><PlusIcon size={16} /></button>
     </div>
   )
 }
@@ -541,14 +545,15 @@ function EntryChip({ entry, person, onRemove }: {
   return (
     <span className={`chip ${person.type} ${entry.status}`} title={STATUS_TITLE[entry.status]}
       onClick={(e) => e.stopPropagation()}>
-      {person.icon ?? '👤'} {person.display_name}
+      {person.icon ?? <UserIcon size={13} />} {person.display_name}
       <span className="chip-actions">
         <button
           title="Remover da escala"
+          aria-label="Remover da escala"
           onClick={() => {
             if (entry.status === 'draft' ||
               confirm(`Remover ${person.display_name} da escala publicada?`)) onRemove()
-          }}>✕</button>
+          }}><XIcon size={12} /></button>
       </span>
     </span>
   )
@@ -557,9 +562,10 @@ function EntryChip({ entry, person, onRemove }: {
 // Ícones cartoon do turno. Estados: "aceso" (on = escalado) e "apagado" (disponível).
 // Lua: amarela iluminada × cinza apagada. Sol: vibrante com contorno × suave sem contorno.
 function MoonIcon({ on, size }: { on: boolean; size: number }) {
-  const body = on ? '#FBE27A' : '#E9E7E2'
-  const crater = on ? '#F7CE46' : '#B9B6B0'
-  const line = '#26201A'
+  // "apagada" (disponível) usa vars de tema p/ adaptar ao claro/escuro; "acesa" mantém amarelo vibrante.
+  const body = on ? '#FBE27A' : 'var(--moon-body)'
+  const crater = on ? '#F7CE46' : 'var(--moon-crater)'
+  const line = on ? '#26201A' : 'var(--moon-stroke)'
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="10.4" fill={body} stroke={line} strokeWidth="1.6" />
@@ -669,13 +675,13 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
   return (
     <div className="card balance-card">
       <div className="balance-head">
-        <h2>⚖️ Equilíbrio da semana</h2>
+        <h2><ScaleIcon size={19} /> Equilíbrio da semana</h2>
         <span className="muted">Ordenar:</span>
         <div className="view-switch">
           <button className={sortMode === 'fair' ? 'active' : ''}
             title="Quem menos trabalhou aparece primeiro; a lista reordena conforme você escala"
             onClick={() => onSortChange('fair')}>
-            ⚖️ Menos escalados
+            <ArrowDownIcon size={15} /> Menos escalados
           </button>
           <button className={sortMode === 'alpha' ? 'active' : ''}
             title="Ordem fixa por nome — a lista não muda enquanto você escala"
@@ -688,11 +694,11 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
         minSched === maxSched ? (
           <div className="balance-stats">
             <div className="stat">
-              <span className="stat-label">✅ Semana equilibrada</span>
+              <span className="stat-label"><CheckCircleIcon size={14} /> Semana equilibrada</span>
               <strong>todos com {minSched} {plural(minSched)}</strong>
             </div>
             <div className="stat">
-              <span className="stat-label">📊 Mediana por FREE</span>
+              <span className="stat-label"><BarChartIcon size={14} /> Mediana por FREE</span>
               <strong>{num(median)}</strong>
               <span className="muted">média {num(avg)} · {plural(median)} na semana</span>
             </div>
@@ -700,17 +706,17 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
         ) : (
           <div className="balance-stats">
             <div className="stat">
-              <span className="stat-label">🔻 Menos escalado</span>
+              <span className="stat-label"><ArrowDownIcon size={14} /> Menos escalado</span>
               <strong>{fmtNames(minNames)}</strong>
               <span className="muted">{minSched} {plural(minSched)}</span>
             </div>
             <div className="stat">
-              <span className="stat-label">🔺 Mais escalado</span>
+              <span className="stat-label"><ArrowUpIcon size={14} /> Mais escalado</span>
               <strong>{fmtNames(maxNames)}</strong>
               <span className="muted">{maxSched} {plural(maxSched)}</span>
             </div>
             <div className="stat">
-              <span className="stat-label">📊 Mediana por FREE</span>
+              <span className="stat-label"><BarChartIcon size={14} /> Mediana por FREE</span>
               <strong>{num(median)}</strong>
               <span className="muted">média {num(avg)} · {plural(median)} na semana</span>
             </div>

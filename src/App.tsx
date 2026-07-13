@@ -13,6 +13,7 @@ import { Disponibilidade } from './pages/free/Disponibilidade'
 import { Entrar } from './pages/free/Entrar'
 import { MinhaEscala } from './pages/free/MinhaEscala'
 import { RootPage } from './pages/root/RootPage'
+import { FlaskIcon } from './components/icons'
 import { DEMO_MODE } from './lib/supabase'
 
 const queryClient = new QueryClient({
@@ -23,9 +24,13 @@ export default function App() {
   return (
     <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      {/* Texturas globais (grão + halo de acento) */}
+      <div className="halo" aria-hidden="true" />
+      <div className="grain" aria-hidden="true" />
+
       {DEMO_MODE && (
         <div className="demo-banner">
-          🧪 Modo demonstração — dados fictícios em memória. Qualquer e-mail/senha entra como
+          <FlaskIcon size={15} /> Modo demonstração — dados fictícios em memória. Qualquer e-mail/senha entra como
           gerente (comece com "root" p/ Root); FREE: telefone 5511999990001 + qualquer PIN.
         </div>
       )}

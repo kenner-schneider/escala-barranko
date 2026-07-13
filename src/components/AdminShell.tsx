@@ -3,6 +3,25 @@ import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Profile, Restaurant } from '../lib/types'
 import { Loading } from './ui'
+import { ClipboardIcon, LogOutIcon, MoonToggleIcon, SunToggleIcon } from './icons'
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(
+    () => (document.documentElement.getAttribute('data-theme') as 'dark' | 'light') || 'dark',
+  )
+  const toggle = () => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    document.documentElement.setAttribute('data-theme', next)
+    localStorage.setItem('escala.theme', next)
+    setTheme(next)
+  }
+  return (
+    <button className="glass icon theme-toggle" onClick={toggle} aria-label="Alternar tema claro/escuro">
+      <span className="ti sun"><SunToggleIcon /></span>
+      <span className="ti moon"><MoonToggleIcon /></span>
+    </button>
+  )
+}
 
 export interface AdminCtxValue {
   profile: Profile
@@ -56,17 +75,23 @@ export function AdminShell() {
   return (
     <AdminCtx.Provider value={{ profile: profile!, restaurant: restaurant!, reloadRestaurant: load }}>
       <header className="topnav">
-        <span className="brand">📋 {restaurant!.name}</span>
+        <span className="brand">
+          <span className="logo"><ClipboardIcon size={20} /></span>
+          <span className="name"><b>{restaurant!.name}</b><span>Escalas</span></span>
+        </span>
+        <span className="brand-div" />
         <nav>
           <NavLink to="/escala">Escala</NavLink>
           <NavLink to="/pessoas">Pessoas</NavLink>
           <NavLink to="/relatorios">Relatórios</NavLink>
           <NavLink to="/config">Config</NavLink>
         </nav>
+        <ThemeToggle />
         <button
-          className="btn-link"
+          className="glass sm"
           onClick={async () => { await supabase.auth.signOut(); navigate('/login') }}
         >
+          <LogOutIcon size={17} />
           Sair
         </button>
       </header>

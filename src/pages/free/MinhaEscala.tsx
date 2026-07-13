@@ -4,6 +4,7 @@ import { dayLabelPT, hhmm, monthOf, todaySP } from '../../lib/dates'
 import { freeClaims, getFreeJwt } from '../../lib/freeAuth'
 import { freeSupabase } from '../../lib/supabase'
 import type { MonthlyCount } from '../../lib/types'
+import { CheckIcon, PartyIcon } from '../../components/icons'
 
 interface EntryRow {
   id: string
@@ -52,8 +53,8 @@ export function MinhaEscala() {
 
       <div className="card">
         {todayEntries.length > 0 ? (
-          <p>
-            🎉 Você trabalha <strong>hoje</strong>:{' '}
+          <p style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+            <PartyIcon size={18} /> Você trabalha <strong>hoje</strong>:{' '}
             {todayEntries.map((e) => e.shifts?.name).join(' e ')}
           </p>
         ) : (
@@ -72,7 +73,7 @@ export function MinhaEscala() {
               {e.shifts?.name} {e.shifts ? `${hhmm(e.shifts.start_time)}–${hhmm(e.shifts.end_time)}` : ''}
             </span>
             {e.status === 'confirmed'
-              ? <span className="badge" style={{ color: 'var(--success)' }}>✅ confirmado</span>
+              ? <span className="badge" style={{ color: 'var(--success)' }}><CheckIcon size={12} /> confirmado</span>
               : <span className="badge">aguardando sua confirmação no grupo</span>}
           </div>
         </div>

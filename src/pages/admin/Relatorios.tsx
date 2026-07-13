@@ -5,6 +5,7 @@ import { Empty, ErrorMsg, Loading } from '../../components/ui'
 import { addMonths, monthLabelPT, monthOf, monthRange, todaySP } from '../../lib/dates'
 import { adminToken, callFn, supabase } from '../../lib/supabase'
 import type { MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
+import { ChevronLeftIcon, ChevronRightIcon } from '../../components/icons'
 
 export function Relatorios() {
   const { restaurant } = useAdmin()
@@ -68,9 +69,9 @@ export function Relatorios() {
       <h1>Relatórios</h1>
       {err && <ErrorMsg msg={err} />}
       <div className="schedule-toolbar">
-        <button className="btn small" onClick={() => setMonth(addMonths(month, -1))}>←</button>
+        <button className="glass icon" onClick={() => setMonth(addMonths(month, -1))} aria-label="Mês anterior"><ChevronLeftIcon size={19} /></button>
         <strong>{monthLabelPT(month)}</strong>
-        <button className="btn small" onClick={() => setMonth(addMonths(month, 1))}>→</button>
+        <button className="glass icon" onClick={() => setMonth(addMonths(month, 1))} aria-label="Próximo mês"><ChevronRightIcon size={19} /></button>
         <div className="spacer" />
         <button className="btn primary" onClick={exportCsv} disabled={exporting}>
           {exporting ? 'Exportando…' : 'Exportar CSV'}

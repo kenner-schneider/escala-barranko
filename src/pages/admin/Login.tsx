@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ErrorMsg } from '../../components/ui'
+import { ClipboardIcon } from '../../components/icons'
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -28,7 +29,7 @@ export function Login() {
 
   return (
     <div className="auth-box card">
-      <h1>📋 Escala — Gerente</h1>
+      <h1 style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}><ClipboardIcon size={22} /> Escala — Gerente</h1>
       <form onSubmit={submit}>
         <label className="field">
           E-mail

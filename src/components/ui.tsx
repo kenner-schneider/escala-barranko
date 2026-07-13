@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react'
+import { CheckIcon, XIcon } from './icons'
 
 export const Spinner = () => <div className="spinner" role="status" aria-label="Carregando" />
 
@@ -25,7 +26,7 @@ export function Modal({ title, onClose, children }: {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h3>{title}</h3>
-          <button className="btn-icon" onClick={onClose} aria-label="Fechar">✕</button>
+          <button className="btn-icon" onClick={onClose} aria-label="Fechar"><XIcon size={18} /></button>
         </div>
         {children}
       </div>
@@ -54,7 +55,7 @@ export function CopyButton({ text, label = 'Copiar' }: { text: string; label?: s
         setTimeout(() => setCopied(false), 2000)
       }}
     >
-      {copied ? '✓ Copiado!' : label}
+      {copied ? <><CheckIcon size={16} /> Copiado!</> : label}
     </button>
   )
 }
