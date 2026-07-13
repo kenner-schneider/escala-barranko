@@ -27,6 +27,7 @@ export interface Shift {
   start_time: string
   end_time: string
   color: string
+  label: string | null   // rótulo curto (ícone), até 3 chars alfanuméricos; null = usa inicial do nome
   active: boolean
 }
 

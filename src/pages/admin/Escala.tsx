@@ -14,7 +14,7 @@ import { supabase } from '../../lib/supabase'
 import type { Area, Availability, MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
 import {
   ArrowDownIcon, ArrowUpIcon, BarChartIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon,
-  PlusIcon, ScaleIcon, UserIcon, XIcon,
+  PlusIcon, ScaleIcon, SendIcon, UserIcon, XIcon,
 } from '../../components/icons'
 
 type View = 'day' | 'week' | 'month'
@@ -301,6 +301,13 @@ export function Escala() {
     : monthLabelPT(monthOf(anchor))
   const scopeDates = view === 'day' ? [anchor] : gridDates
   const hasDraft = entries.some((e) => scopeDates.includes(e.date) && e.status === 'draft')
+  // Tem convocação publicada no período → dá pra (re)gerar as mensagens quando quiser.
+  const hasPublished = entries.some(
+    (e) => scopeDates.includes(e.date) && (e.status === 'convoked' || e.status === 'confirmed'))
+  const showMessages = () => setPublishMsgs(buildMessagesByArea({
+    template: restaurant.settings.message_template,
+    dates: scopeDates, shifts, entries, people, areas,
+  }))
   const today = todaySP()
 
   return (
@@ -342,6 +349,10 @@ export function Escala() {
           <>
             <button className="btn" onClick={() => applyFixed.mutate()} disabled={applyFixed.isPending}>
               Aplicar dias fixos
+            </button>
+            <button className="btn" disabled={!hasPublished} onClick={showMessages}
+              title="Reabre as mensagens desta semana (regeradas da escala publicada)">
+              <SendIcon size={16} /> Ver mensagens
             </button>
             <button className="btn primary" disabled={!hasDraft || publish.isPending}
               onClick={() => publish.mutate(scopeDates)}>
@@ -579,14 +590,15 @@ function EntryChip({ entry, person, onRemove }: {
   )
 }
 
-// Ícone do turno = inicial do nome (M, N, T…). O estado (escalado × disponível)
-// vem do próprio pill: preenchimento na cor do turno × contorno tracejado.
-// Vários turnos podem começar em horários parecidos, então a inicial é mais clara
-// que sol/lua (que só cobriam manhã/noite).
+// Ícone do turno = rótulo curto definido no Config (até 3 chars, ex.: "M11", "N").
+// Cai na inicial do nome quando não há rótulo. A fonte encolhe conforme o nº de chars
+// p/ caber no pill. O estado (escalado × disponível) vem da cor/preenchimento do pill.
 function ShiftIcon({ shift, size = 26 }: { shift: Shift; size?: number }) {
+  const text = ((shift.label ?? '').trim() || shift.name.charAt(0)).toUpperCase().slice(0, 3)
+  const scale = text.length >= 3 ? 0.32 : text.length === 2 ? 0.42 : 0.58
   return (
-    <span className="letter-icon" style={{ fontSize: size * 0.58 }} aria-hidden="true">
-      {shift.name.charAt(0).toUpperCase()}
+    <span className="letter-icon" style={{ fontSize: size * scale }} aria-hidden="true">
+      {text}
     </span>
   )
 }
@@ -617,11 +629,11 @@ function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
   onRemove: (entryId: string) => void
 }) {
   const time = `${hhmm(shift.start_time)}–${hhmm(shift.end_time)}`
+  const svar = { '--shift-color': shift.color } as React.CSSProperties
   if (state.kind === 'here') {
     const status = state.entry!.status
     return (
-      <button className={`pill icon-pill ${status}`}
-        style={{ background: `${shift.color}26`, borderColor: shift.color }}
+      <button className={`pill icon-pill sched ${status}`} style={svar}
         title={`${shift.name} ${time} — ${STATUS_TITLE[status]}`}
         onClick={() => { if (status === 'draft') onRemove(state.entry!.id) }}>
         <ShiftIcon shift={shift} />
@@ -631,7 +643,7 @@ function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
   if (state.kind === 'blocked') {
     return (
       <button className="pill icon-pill blocked"
-        style={{ '--other-color': state.area?.color ?? 'var(--dim)' } as React.CSSProperties}
+        style={{ ...svar, '--other-color': state.area?.color ?? 'var(--dim)' } as React.CSSProperties}
         title={`${shift.name} ${time} — já em ${state.area?.name ?? 'outra escala'}; clique para mover para ${selAreaName}`}
         onClick={onAssign}>
         <ShiftIcon shift={shift} />
@@ -640,7 +652,7 @@ function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
     )
   }
   return (
-    <button className="pill icon-pill avail" style={{ borderColor: 'var(--border-strong)' }}
+    <button className="pill icon-pill avail" style={svar}
       title={`${shift.name} ${time} — disponível: clique para escalar em ${selAreaName}`}
       onClick={onAssign}>
       <ShiftIcon shift={shift} />

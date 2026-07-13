@@ -123,7 +123,12 @@ export function Config() {
           <tbody>
             {shifts.map((s) => (
               <tr key={s.id}>
-                <td><span className="chip" style={{ borderColor: s.color }}>{s.name}</span></td>
+                <td>
+                  <span className="chip" style={{ borderColor: s.color }}>{s.name}</span>
+                  {s.label && (
+                    <span className="badge" style={{ marginLeft: '.4rem', borderColor: s.color }}>{s.label}</span>
+                  )}
+                </td>
                 <td>{hhmm(s.start_time)}–{hhmm(s.end_time)}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn small" onClick={() => setEditing(s)}>Editar</button>{' '}
@@ -145,7 +150,7 @@ export function Config() {
         </table>
         {!editing && (
           <button className="btn" style={{ marginTop: '.6rem' }}
-            onClick={() => setEditing({ name: '', start_time: '', end_time: '', color: '#3b82f6' })}>
+            onClick={() => setEditing({ name: '', start_time: '', end_time: '', color: '#3b82f6', label: '' })}>
             + Novo turno
           </button>
         )}
@@ -168,7 +173,18 @@ export function Config() {
                 <input type="color" value={editing.color ?? '#3b82f6'}
                   onChange={(e) => setEditing({ ...editing, color: e.target.value })} />
               </label>
+              <label className="field">Ícone (até 3)
+                <input value={editing.label ?? ''} placeholder="Ex.: M11"
+                  onChange={(e) => setEditing({
+                    ...editing,
+                    label: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase(),
+                  })} />
+              </label>
             </div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              O ícone aparece nos quadradinhos da escala. Até 3 letras/números (sem símbolos).
+              Vazio = usa a inicial do nome.
+            </p>
             <button className="btn primary">{editing.id ? 'Salvar turno' : 'Criar turno'}</button>{' '}
             <button type="button" className="btn" onClick={() => setEditing(null)}>Cancelar</button>
           </form>

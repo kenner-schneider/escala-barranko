@@ -406,14 +406,18 @@ table.balance tbody tr:last-child td{border-bottom:none}
 .bar{display:block; width:76px; height:7px; background:var(--glass-2); border:1px solid var(--border); border-radius:4px; margin-top:.28rem; overflow:hidden}
 .bar i{display:block; height:100%; background:linear-gradient(90deg,#fb8a3c,var(--accent)); border-radius:4px; transition:width .25s ease}
 
-/* ---------- Pills sol/lua ---------------------------------- */
+/* ---------- Pills do turno (rótulo curto) ------------------ */
 .pill{display:inline-flex; align-items:center; justify-content:center; min-width:34px; padding:.12rem .38rem; margin:.08rem;
   border:1.6px solid var(--swatch-border); border-radius:9px; font-size:.72rem; font-weight:700; font-family:var(--font);
   background:var(--glass); color:var(--ink); cursor:pointer; line-height:1.2; transition:transform .15s, background-color .15s}
-.pill:hover{transform:translateY(-1px); background:var(--glass-2)}
+.pill:hover{transform:translateY(-1px)}
 .pill:active{transform:translateY(0)}
-.pill.avail{border-style:dashed}
-.pill.avail:hover{background:var(--accent-soft); border-color:var(--accent-line)}
+/* Escalado: cor do turno cheia. Disponível: mesma cor, porém fraca (tracejada). */
+.pill.sched{border-style:solid; border-color:var(--shift-color); background:color-mix(in srgb, var(--shift-color) 20%, transparent)}
+.pill.avail{border-style:dashed; border-color:color-mix(in srgb, var(--shift-color) 55%, transparent);
+  background:color-mix(in srgb, var(--shift-color) 9%, transparent)}
+.pill.avail:hover{background:color-mix(in srgb, var(--shift-color) 18%, transparent);
+  border-color:color-mix(in srgb, var(--shift-color) 80%, transparent)}
 .pill.confirmed{box-shadow:0 0 0 2px var(--success)}
 .pill.declined{background:var(--danger-soft); border-color:var(--danger); color:var(--chip-declined); text-decoration:line-through}
 .pill.icon-pill{width:var(--tap); height:var(--tap); min-width:var(--tap); padding:0; border-radius:12px}

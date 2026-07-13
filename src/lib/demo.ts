@@ -30,8 +30,8 @@ const db: Record<string, Row[]> = {
     { id: ROOT, restaurant_id: null, role: 'root', name: 'Root Demo' },
   ],
   shifts: [
-    { id: S1, restaurant_id: R, name: 'Meio-dia', start_time: '11:00', end_time: '15:00', color: '#f59e0b', active: true },
-    { id: S2, restaurant_id: R, name: 'Noite', start_time: '18:00', end_time: '23:00', color: '#3b82f6', active: true },
+    { id: S1, restaurant_id: R, name: 'Meio-dia', start_time: '11:00', end_time: '15:00', color: '#f59e0b', label: 'MD', active: true },
+    { id: S2, restaurant_id: R, name: 'Noite', start_time: '18:00', end_time: '23:00', color: '#3b82f6', label: 'N', active: true },
   ],
   areas: [
     { id: A1, restaurant_id: R, name: 'Salão', color: '#3b82f6', sort_order: 0, active: true },
