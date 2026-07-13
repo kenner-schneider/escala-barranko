@@ -21,6 +21,13 @@ type View = 'day' | 'week' | 'month'
 // 'fair' = quem menos trabalhou primeiro (reordena ao escalar) · 'alpha' = ordem fixa A–Z
 type SortMode = 'fair' | 'alpha'
 
+// Elegibilidade: escalas (setores) em que a pessoa concorre. null/[] = todas.
+// Ex.: quem só trabalha na cozinha e no bar não aparece na escala de atendimento.
+function isEligible(person: Person, areaId: string): boolean {
+  const ids = person.area_ids
+  return !ids || ids.length === 0 || ids.includes(areaId)
+}
+
 export function Escala() {
   const { restaurant, profile } = useAdmin()
   const qc = useQueryClient()
@@ -195,7 +202,7 @@ export function Escala() {
       const rows: Record<string, unknown>[] = []
       for (const date of gridDates) {
         const key = FIXED_KEYS[weekdayIdx(date)]
-        for (const p of people.filter((x) => x.type === 'clt' && x.fixed_days)) {
+        for (const p of people.filter((x) => x.type === 'clt' && x.fixed_days && isEligible(x, selArea))) {
           for (const shiftId of p.fixed_days?.[key] ?? []) {
             if (!shifts.some((s) => s.id === shiftId)) continue
             if (entries.some((e) => e.person_id === p.id && e.date === date && e.shift_id === shiftId)) continue
@@ -232,14 +239,15 @@ export function Escala() {
   }, [entries])
   const weekCountOf = (pid: string) => weekSched.get(pid) ?? 0
 
-  // FREEs disponíveis e ainda não escalados numa célula (p/ indicador "N disp.")
+  // FREEs disponíveis, ELEGÍVEIS à escala atual e ainda não escalados (p/ indicador "N disp.")
   const availCount = (date: string, shiftId: string) =>
-    availability.filter((a) =>
-      a.date === date && a.shift_id === shiftId &&
-      !entries.some((e) =>
-        e.person_id === a.person_id && e.date === date && e.shift_id === shiftId && e.status !== 'declined',
-      ),
-    ).length
+    availability.filter((a) => {
+      if (a.date !== date || a.shift_id !== shiftId) return false
+      const p = personOf.get(a.person_id)
+      if (!p || !isEligible(p, selArea)) return false
+      return !entries.some((e) =>
+        e.person_id === a.person_id && e.date === date && e.shift_id === shiftId && e.status !== 'declined')
+    }).length
 
   const panel = useMemo(() => {
     if (!selected) return null
@@ -253,20 +261,21 @@ export function Escala() {
     const otherArea = slotEntries
       .filter((e) => e.area_id !== selArea)
       .map((e) => ({ person: personOf.get(e.person_id), area: areas.find((a) => a.id === e.area_id) }))
-      .filter((x): x is { person: Person; area: Area | undefined } => !!x.person)
+      .filter((x): x is { person: Person; area: Area | undefined } =>
+        !!x.person && isEligible(x.person, selArea))
     const month = monthOf(selected.date)
     // Distribuição justa: menos escalado NA SEMANA primeiro; empate decide pelo mês.
     // Em ordem alfabética a lista fica estável (não reordena ao escalar).
     const wk = (pid: string) => (view === 'week' ? weekCountOf(pid) : 0)
     const frees = people
-      .filter((p) => p.type === 'free' && availSet.has(p.id) && !taken.has(p.id))
+      .filter((p) => p.type === 'free' && isEligible(p, selArea) && availSet.has(p.id) && !taken.has(p.id))
       .sort((a, b) =>
         sortMode === 'alpha'
           ? a.display_name.localeCompare(b.display_name)
           : wk(a.id) - wk(b.id) ||
             countOf(a.id, month) - countOf(b.id, month) ||
             a.display_name.localeCompare(b.display_name))
-    const clts = people.filter((p) => p.type === 'clt' && !taken.has(p.id))
+    const clts = people.filter((p) => p.type === 'clt' && isEligible(p, selArea) && !taken.has(p.id))
     return { frees, clts, month, otherArea }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, availability, entries, people, counts, view, sortMode, selArea, areas])
@@ -676,7 +685,7 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
   onAssign: (personId: string, date: string, shiftId: string) => void
   onRemove: (entryId: string) => void
 }) {
-  const frees = people.filter((p) => p.type === 'free')
+  const frees = people.filter((p) => p.type === 'free' && isEligible(p, selArea))
   const availOf = (pid: string, d: string, s: string) =>
     availability.some((a) => a.person_id === pid && a.date === d && a.shift_id === s)
 
@@ -827,7 +836,7 @@ function CltBalanceView({ dates, shifts, people, entries, areas, selArea, selAre
   onAssign: (personId: string, date: string, shiftId: string) => void
   onRemove: (entryId: string) => void
 }) {
-  const clts = people.filter((p) => p.type === 'clt')
+  const clts = people.filter((p) => p.type === 'clt' && isEligible(p, selArea))
   if (clts.length === 0) return null
   const fixedHas = (p: Person, d: string, sid: string) =>
     (p.fixed_days?.[FIXED_KEYS[weekdayIdx(d)]] ?? []).includes(sid)

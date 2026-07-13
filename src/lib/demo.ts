@@ -39,11 +39,11 @@ const db: Record<string, Row[]> = {
     { id: A3, restaurant_id: R, name: 'Bar', color: '#8b5cf6', sort_order: 2, active: true },
   ],
   people: [
-    { id: C(1), restaurant_id: R, type: 'clt', full_name: 'Carlos Pereira', display_name: 'Carlos', icon: '👨‍🍳', phone: null, monthly_limit: null, fixed_days: { mon: [S1], wed: [S1], fri: [S1] }, active: true },
+    { id: C(1), restaurant_id: R, type: 'clt', full_name: 'Carlos Pereira', display_name: 'Carlos', icon: '👨‍🍳', phone: null, monthly_limit: null, fixed_days: { mon: [S1], wed: [S1], fri: [S1] }, area_ids: [A2], active: true },
     { id: C(2), restaurant_id: R, type: 'clt', full_name: 'Cintia Souza', display_name: 'Cintia', icon: '🧑‍🍳', phone: null, monthly_limit: null, fixed_days: null, active: true },
     { id: C(3), restaurant_id: R, type: 'clt', full_name: 'Cesar Lima', display_name: 'Cesar', icon: '🍳', phone: null, monthly_limit: null, fixed_days: null, active: true },
     { id: P(1), restaurant_id: R, type: 'free', full_name: 'Fernanda Alves', display_name: 'Fernanda', icon: '⭐', phone: '5511999990001', monthly_limit: null, fixed_days: null, active: true },
-    { id: P(2), restaurant_id: R, type: 'free', full_name: 'Fabio Santos', display_name: 'Fabio', icon: '🔥', phone: '5511999990002', monthly_limit: null, fixed_days: null, active: true },
+    { id: P(2), restaurant_id: R, type: 'free', full_name: 'Fabio Santos', display_name: 'Fabio', icon: '🔥', phone: '5511999990002', monthly_limit: null, fixed_days: null, area_ids: [A2, A3], active: true },
     { id: P(3), restaurant_id: R, type: 'free', full_name: 'Flavia Costa', display_name: 'Flavia', icon: '🌟', phone: '5511999990003', monthly_limit: 5, fixed_days: null, active: true },
     { id: P(4), restaurant_id: R, type: 'free', full_name: 'Felipe Rocha', display_name: 'Felipe', icon: '⚡', phone: '5511999990004', monthly_limit: null, fixed_days: null, active: true },
     { id: P(5), restaurant_id: R, type: 'free', full_name: 'Fatima Dias', display_name: 'Fatima', icon: '🌙', phone: '5511999990005', monthly_limit: null, fixed_days: null, active: true },

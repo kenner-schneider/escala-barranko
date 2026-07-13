@@ -477,6 +477,12 @@ table.balance tbody tr:last-child td{border-bottom:none}
   color:var(--ink-strong); font-family:var(--font); font-weight:700; font-size:.82rem; text-transform:none; letter-spacing:0}
 .dias-fixos-th .hr{font-family:var(--mono); font-size:.62rem; font-weight:500; text-transform:none; letter-spacing:0; color:var(--dim); white-space:nowrap}
 
+/* ---------- Elegibilidade: escalas em que a pessoa concorre - */
+.area-check{display:inline-flex; align-items:center; gap:.45rem; min-height:var(--tap); padding:.4rem .7rem; border-radius:10px;
+  border:1px solid var(--border-2); background:var(--glass-2); font-size:.85rem; font-weight:600; color:var(--ink); cursor:pointer}
+.area-check input{accent-color:var(--accent); cursor:pointer}
+.area-check .area-dot{width:11px; height:11px; border-radius:3px; flex:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+
 /* ---------- Banner demo ------------------------------------ */
 .demo-banner{position:relative; z-index:3; display:flex; align-items:center; justify-content:center; gap:.4rem;
   background:var(--accent-soft); border-bottom:1px solid var(--accent-line); color:var(--accent-ink);

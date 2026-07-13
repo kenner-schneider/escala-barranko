@@ -41,6 +41,7 @@ export interface Person {
   phone: string | null
   monthly_limit: number | null
   fixed_days: Record<string, string[]> | null
+  area_ids: string[] | null   // escalas em que concorre; null/[] = todas
   active: boolean
 }
 

@@ -4,7 +4,7 @@ import { useAdmin } from '../../components/AdminShell'
 import { CopyButton, Empty, ErrorMsg, Loading, Modal } from '../../components/ui'
 import { FIXED_KEYS, WEEKDAYS_PT, hhmm, monthOf, todaySP } from '../../lib/dates'
 import { adminToken, callFn, supabase } from '../../lib/supabase'
-import type { MonthlyCount, Person, Shift } from '../../lib/types'
+import type { Area, MonthlyCount, Person, Shift } from '../../lib/types'
 import { PhoneIcon, UserIcon } from '../../components/icons'
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] // seg..dom
@@ -39,6 +39,17 @@ export function Pessoas() {
         .eq('restaurant_id', restaurant.id).eq('active', true).order('start_time')
       if (error) throw error
       return data as Shift[]
+    },
+  })
+
+  const areasQ = useQuery({
+    queryKey: ['areas', restaurant.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('areas').select('*')
+        .eq('restaurant_id', restaurant.id).eq('active', true).order('sort_order')
+      if (error) throw error
+      return data as Area[]
     },
   })
 
@@ -119,7 +130,7 @@ export function Pessoas() {
     onError: (e: Error) => setErr(e.message),
   })
 
-  if (peopleQ.isLoading || shiftsQ.isLoading) return <Loading />
+  if (peopleQ.isLoading || shiftsQ.isLoading || areasQ.isLoading) return <Loading />
 
   const people = (peopleQ.data ?? []).filter((p) => p.type === tab && p.active)
   const inactive = (peopleQ.data ?? []).filter((p) => p.type === tab && !p.active)
@@ -224,7 +235,7 @@ export function Pessoas() {
       )}
 
       {editing && (
-        <PersonForm person={editing} shifts={shiftsQ.data ?? []}
+        <PersonForm person={editing} shifts={shiftsQ.data ?? []} areas={areasQ.data ?? []}
           onSave={(p) => savePerson.mutate(p)} onClose={() => setEditing(null)} />
       )}
 
@@ -239,15 +250,24 @@ export function Pessoas() {
   )
 }
 
-function PersonForm({ person, shifts, onSave, onClose }: {
+function PersonForm({ person, shifts, areas, onSave, onClose }: {
   person: Partial<Person>
   shifts: Shift[]
+  areas: Area[]
   onSave: (p: Partial<Person>) => void
   onClose: () => void
 }) {
   const [form, setForm] = useState<Partial<Person>>({ ...person })
   const isFree = form.type === 'free'
   const fixed = (form.fixed_days ?? {}) as Record<string, string[]>
+
+  // Elegibilidade: undefined (legado/novo) = concorre a TODAS (marcadas).
+  const allAreaIds = areas.map((a) => a.id)
+  const areaIds = form.area_ids ?? allAreaIds
+  function toggleArea(id: string) {
+    const next = areaIds.includes(id) ? areaIds.filter((a) => a !== id) : [...areaIds, id]
+    setForm({ ...form, area_ids: next })
+  }
 
   function toggleFixed(dayKey: string, shiftId: string) {
     const cur = fixed[dayKey] ?? []
@@ -291,6 +311,23 @@ function PersonForm({ person, shifts, onSave, onClose }: {
             </>
           )}
         </div>
+        {areas.length > 0 && (
+          <div style={{ marginBottom: '.75rem' }}>
+            <strong style={{ fontSize: '.85rem' }}>Escalas em que concorre</strong>
+            <p className="muted" style={{ margin: '.15rem 0 .45rem' }}>
+              Marque as escalas em que a pessoa pode ser escalada. Nada marcado = todas.
+            </p>
+            <div className="person-list">
+              {areas.map((a) => (
+                <label key={a.id} className="area-check">
+                  <input type="checkbox" checked={areaIds.includes(a.id)} onChange={() => toggleArea(a.id)} />
+                  <span className="area-dot" style={{ background: a.color }} />
+                  {a.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         {!isFree && shifts.length > 0 && (
           <div style={{ marginBottom: '.75rem' }}>
             <strong style={{ fontSize: '.85rem' }}>Dias fixos (pré-preenchem a escala)</strong>
