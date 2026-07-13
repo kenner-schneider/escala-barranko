@@ -60,9 +60,9 @@ export function Relatorios() {
   const personOf = new Map(people.map((p) => [p.id, p]))
   const limitOf = (p: Person) => p.monthly_limit ?? restaurant.settings.default_monthly_limit
 
-  const published = entries.filter((e) => e.status !== 'draft')
-  const confirmed = entries.filter((e) => e.status === 'confirmed').length
-  const rate = published.length ? Math.round((confirmed / published.length) * 100) : null
+  const scheduled = entries.filter((e) => e.status !== 'draft')
+  const presentCount = entries.filter((e) => e.status === 'confirmed').length
+  const absentCount = entries.filter((e) => e.status === 'declined').length
 
   return (
     <div>
@@ -81,10 +81,11 @@ export function Relatorios() {
       <div className="card">
         <h2>Resumo do mês</h2>
         <p>
-          Convocações publicadas: <strong>{published.length}</strong> ·
-          Confirmadas: <strong>{confirmed}</strong> ·
-          Taxa de confirmação: <strong>{rate === null ? '—' : `${rate}%`}</strong>
+          Escalas publicadas: <strong>{scheduled.length}</strong> ·
+          Presenças confirmadas: <strong>{presentCount}</strong> ·
+          Faltas: <strong>{absentCount}</strong>
         </p>
+        <p className="muted">Presenças e faltas vêm da aba Presença (dias já passados).</p>
       </div>
 
       <div className="card">

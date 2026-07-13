@@ -92,6 +92,13 @@ db.schedule_entries.push(
   entry(P(1), addDays(today, -5), S2, 'convoked', A3),
   entry(P(1), addDays(today, -3), S1, 'convoked', A1),
   entry(P(2), addDays(today, -3), S2, 'convoked', A2),
+  // Dias já passados desta semana — p/ a aba Presença (foi/faltou), com estados variados
+  entry(P(1), addDays(today, -1), S2, 'convoked', A1),
+  entry(P(2), addDays(today, -1), S1, 'confirmed', A2),
+  entry(P(4), addDays(today, -1), S2, 'declined', A3),
+  entry(P(6), today, S1, 'convoked', A1),
+  entry(C(1), today, S1, 'convoked', A2),
+  // Futuro
   entry(P(1), addDays(today, 1), S2, 'convoked', A1),
   entry(P(2), addDays(today, 1), S2, 'convoked', A2),
   entry(P(3), addDays(today, 2), S1, 'convoked', A3),

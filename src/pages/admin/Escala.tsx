@@ -9,7 +9,7 @@ import {
   FIXED_KEYS, addDays, addMonths, dayLabelPT, fmtShort, hhmm, mondayOf, monthLabelPT, monthOf,
   monthRange, todaySP, weekdayIdx, WEEKDAYS_PT,
 } from '../../lib/dates'
-import { buildMessage } from '../../lib/messages'
+import { buildMessagesByArea, type AreaMessage } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
 import type { Area, Availability, MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
 import {
@@ -36,7 +36,7 @@ export function Escala() {
     localStorage.setItem('escala.sort', m)
     setSortModeState(m)
   }
-  const [publishMsg, setPublishMsg] = useState<string | null>(null)
+  const [publishMsgs, setPublishMsgs] = useState<AreaMessage[] | null>(null)
   const [err, setErr] = useState('')
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -123,6 +123,9 @@ export function Escala() {
   const areas = areasQ.data ?? []
   // Escala (setor) selecionada — cai na 1ª ativa se nenhuma escolhida ou se a escolhida sumiu.
   const selArea = areaId && areas.some((a) => a.id === areaId) ? areaId : (areas[0]?.id ?? '')
+  const selAreaObj = areas.find((a) => a.id === selArea)
+  const selAreaColor = selAreaObj?.color ?? '#f97316'
+  const selAreaName = selAreaObj?.name ?? 'escala'
   const personOf = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
 
   const invalidate = () => {
@@ -177,7 +180,7 @@ export function Escala() {
     onSuccess: (dates) => {
       const updated = entries.map((e) =>
         dates.includes(e.date) && e.status === 'draft' ? { ...e, status: 'convoked' as const } : e)
-      setPublishMsg(buildMessage({
+      setPublishMsgs(buildMessagesByArea({
         template: restaurant.settings.message_template,
         dates, shifts, entries: updated, people, areas,
       }))
@@ -348,12 +351,19 @@ export function Escala() {
         )}
       </div>
 
+      <div className="area-scope" style={{ '--area-color': selAreaColor } as React.CSSProperties}>
       {view === 'week' && showBalance && (
-        <BalanceView dates={gridDates} shifts={shifts} people={people}
-          availability={availability} entries={entries}
-          sortMode={sortMode} onSortChange={setSortMode}
-          onAssign={(personId, date, shiftId) => addEntry.mutate({ personId, date, shiftId })}
-          onRemove={(id) => removeEntry.mutate(id)} />
+        <>
+          <BalanceView dates={gridDates} shifts={shifts} people={people}
+            availability={availability} entries={entries} areas={areas} selArea={selArea} selAreaName={selAreaName}
+            sortMode={sortMode} onSortChange={setSortMode}
+            onAssign={(personId, date, shiftId) => addEntry.mutate({ personId, date, shiftId })}
+            onRemove={(id) => removeEntry.mutate(id)} />
+          <CltBalanceView dates={gridDates} shifts={shifts} people={people}
+            entries={entries} areas={areas} selArea={selArea} selAreaName={selAreaName}
+            onAssign={(personId, date, shiftId) => addEntry.mutate({ personId, date, shiftId })}
+            onRemove={(id) => removeEntry.mutate(id)} />
+        </>
       )}
 
       {view === 'month' ? (
@@ -473,17 +483,27 @@ export function Escala() {
           )}
         </DndContext>
       )}
+      </div>
 
-      {publishMsg !== null && (
-        <Modal title="Mensagem para o grupo" onClose={() => setPublishMsg(null)}>
-          {publishMsg ? (
+      {publishMsgs !== null && (
+        <Modal title="Mensagens por escala" onClose={() => setPublishMsgs(null)}>
+          {publishMsgs.length > 0 ? (
             <>
-              <pre className="message">{publishMsg}</pre>
-              <CopyButton text={publishMsg} label="Copiar mensagem" />
-              <p className="muted">Cole no grupo de WhatsApp dos FREE. A mensagem usa só nomes de exibição.</p>
+              {publishMsgs.map((m) => (
+                <div key={m.areaId} className="area-msg">
+                  <div className="area-msg-head">
+                    <span className="area-dot" style={{ background: m.color }} />
+                    <strong>{m.areaName}</strong>
+                    <span className="spacer" />
+                    <CopyButton text={m.text} label="Copiar" />
+                  </div>
+                  <pre className="message">{m.text}</pre>
+                </div>
+              ))}
+              <p className="muted">Cada mensagem vai no grupo de WhatsApp da sua escala. Usa só nomes de exibição.</p>
             </>
           ) : (
-            <p>Nada foi publicado — não havia convocados no período.</p>
+            <p>Nada foi publicado — não havia escalados no período.</p>
           )}
         </Modal>
       )}
@@ -531,9 +551,9 @@ function DraggablePerson({ person, onAdd, children }: {
 
 const STATUS_TITLE: Record<string, string> = {
   draft: 'Rascunho (não publicado)',
-  convoked: 'Convocado — aguardando resposta',
-  confirmed: 'Confirmado',
-  declined: 'Recusou — vaga reaberta',
+  convoked: 'Escalado (publicado no grupo)',
+  confirmed: 'Compareceu',
+  declined: 'Faltou',
 }
 
 function EntryChip({ entry, person, onRemove }: {
@@ -559,56 +579,11 @@ function EntryChip({ entry, person, onRemove }: {
   )
 }
 
-// Ícones cartoon do turno. Estados: "aceso" (on = escalado) e "apagado" (disponível).
-// Lua: amarela iluminada × cinza apagada. Sol: vibrante com contorno × suave sem contorno.
-function MoonIcon({ on, size }: { on: boolean; size: number }) {
-  // "apagada" (disponível) usa vars de tema p/ adaptar ao claro/escuro; "acesa" mantém amarelo vibrante.
-  const body = on ? '#FBE27A' : 'var(--moon-body)'
-  const crater = on ? '#F7CE46' : 'var(--moon-crater)'
-  const line = on ? '#26201A' : 'var(--moon-stroke)'
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="10.4" fill={body} stroke={line} strokeWidth="1.6" />
-      <circle cx="14.8" cy="8.4" r="2.7" fill={crater} stroke={line} strokeWidth="1.3" />
-      <circle cx="8" cy="13.2" r="2" fill={crater} stroke={line} strokeWidth="1.3" />
-      <circle cx="15.2" cy="15.8" r="1.5" fill={crater} stroke={line} strokeWidth="1.2" />
-      <circle cx="9.4" cy="6.8" r="1" fill={crater} stroke={line} strokeWidth="1.1" />
-    </svg>
-  )
-}
-
-function SunIcon({ on, size }: { on: boolean; size: number }) {
-  const ray = on ? '#F28C1E' : '#F3B25A'
-  const core = on ? '#F9D14C' : '#F6CE55'
-  const line = '#26201A'
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <g stroke={ray} strokeWidth="2.6" strokeLinecap="round">
-        {Array.from({ length: 12 }).map((_, i) => {
-          const a = (i * Math.PI) / 6
-          const cos = Math.cos(a)
-          const sin = Math.sin(a)
-          return (
-            <line key={i}
-              x1={12 + 8.6 * cos} y1={12 + 8.6 * sin}
-              x2={12 + 11 * cos} y2={12 + 11 * sin} />
-          )
-        })}
-      </g>
-      <circle cx="12" cy="12" r="6.3" fill={core}
-        stroke={on ? line : 'none'} strokeWidth="1.6" />
-      <path d="M9 9.8a4.3 4.3 0 0 1 3.2-1.9" stroke="#FDF3C0" strokeWidth="1.5"
-        fill="none" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-// Horário de início decide: 5h–11h59 = sol, 17h+ (ou madrugada) = lua.
-// Outros horários (ex.: turno de tarde criado depois) usam a inicial do nome.
-function ShiftIcon({ shift, on, size = 26 }: { shift: Shift; on: boolean; size?: number }) {
-  const h = parseInt(shift.start_time.slice(0, 2), 10)
-  if (h >= 17 || h < 5) return <MoonIcon on={on} size={size} />
-  if (h >= 5 && h < 12) return <SunIcon on={on} size={size} />
+// Ícone do turno = inicial do nome (M, N, T…). O estado (escalado × disponível)
+// vem do próprio pill: preenchimento na cor do turno × contorno tracejado.
+// Vários turnos podem começar em horários parecidos, então a inicial é mais clara
+// que sol/lua (que só cobriam manhã/noite).
+function ShiftIcon({ shift, size = 26 }: { shift: Shift; size?: number }) {
   return (
     <span className="letter-icon" style={{ fontSize: size * 0.58 }} aria-hidden="true">
       {shift.name.charAt(0).toUpperCase()}
@@ -616,14 +591,74 @@ function ShiftIcon({ shift, on, size = 26 }: { shift: Shift; on: boolean; size?:
   )
 }
 
+type PillKind = 'avail' | 'here' | 'blocked'
+interface PillState { kind: PillKind; entry?: ScheduleEntry; area?: Area }
+
+// Estado do pill de um turno p/ uma pessoa, CIENTE da escala selecionada:
+// here = escalado nesta escala · blocked = escalado em OUTRA (mesmo dia+turno) · avail = possível e livre.
+function pillStateOf(
+  entries: ScheduleEntry[], selArea: string, areas: Area[],
+  possible: boolean, pid: string, d: string, sid: string,
+): PillState | null {
+  const e = entries.find((x) => x.person_id === pid && x.date === d && x.shift_id === sid)
+  if (e && e.status !== 'declined') {
+    return e.area_id === selArea
+      ? { kind: 'here', entry: e }
+      : { kind: 'blocked', entry: e, area: areas.find((a) => a.id === e.area_id) }
+  }
+  return possible ? { kind: 'avail', entry: e ?? undefined } : null
+}
+
+function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
+  shift: Shift
+  state: PillState
+  selAreaName: string
+  onAssign: () => void
+  onRemove: (entryId: string) => void
+}) {
+  const time = `${hhmm(shift.start_time)}–${hhmm(shift.end_time)}`
+  if (state.kind === 'here') {
+    const status = state.entry!.status
+    return (
+      <button className={`pill icon-pill ${status}`}
+        style={{ background: `${shift.color}26`, borderColor: shift.color }}
+        title={`${shift.name} ${time} — ${STATUS_TITLE[status]}`}
+        onClick={() => { if (status === 'draft') onRemove(state.entry!.id) }}>
+        <ShiftIcon shift={shift} />
+      </button>
+    )
+  }
+  if (state.kind === 'blocked') {
+    return (
+      <button className="pill icon-pill blocked"
+        style={{ '--other-color': state.area?.color ?? 'var(--dim)' } as React.CSSProperties}
+        title={`${shift.name} ${time} — já em ${state.area?.name ?? 'outra escala'}; clique para mover para ${selAreaName}`}
+        onClick={onAssign}>
+        <ShiftIcon shift={shift} />
+        <span className="pill-other-dot" aria-hidden="true" />
+      </button>
+    )
+  }
+  return (
+    <button className="pill icon-pill avail" style={{ borderColor: 'var(--border-strong)' }}
+      title={`${shift.name} ${time} — disponível: clique para escalar em ${selAreaName}`}
+      onClick={onAssign}>
+      <ShiftIcon shift={shift} />
+    </button>
+  )
+}
+
 // Matriz FREE × dias: todas as possibilidades da semana para escalar com igualdade.
 // Contorno = disponível (clique escala) · preenchido = escalado · quem menos trabalhou vem primeiro.
-function BalanceView({ dates, shifts, people, availability, entries, sortMode, onSortChange, onAssign, onRemove }: {
+function BalanceView({ dates, shifts, people, availability, entries, areas, selArea, selAreaName, sortMode, onSortChange, onAssign, onRemove }: {
   dates: string[]
   shifts: Shift[]
   people: Person[]
   availability: Availability[]
   entries: ScheduleEntry[]
+  areas: Area[]
+  selArea: string
+  selAreaName: string
   sortMode: SortMode
   onSortChange: (m: SortMode) => void
   onAssign: (personId: string, date: string, shiftId: string) => void
@@ -632,8 +667,6 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
   const frees = people.filter((p) => p.type === 'free')
   const availOf = (pid: string, d: string, s: string) =>
     availability.some((a) => a.person_id === pid && a.date === d && a.shift_id === s)
-  const entryOf = (pid: string, d: string, s: string) =>
-    entries.find((e) => e.person_id === pid && e.date === d && e.shift_id === s)
 
   const rows = frees
     .map((p) => {
@@ -748,24 +781,11 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
                 {dates.map((d) => (
                   <td key={d}>
                     {shifts.map((s) => {
-                      const e = entryOf(p.id, d, s.id)
-                      const av = availOf(p.id, d, s.id)
-                      if (!e && !av) return null
-                      const status = e?.status
-                      const scheduled = status && status !== 'declined'
+                      const st = pillStateOf(entries, selArea, areas, availOf(p.id, d, s.id), p.id, d, s.id)
+                      if (!st) return null
                       return (
-                        <button key={s.id}
-                          className={`pill icon-pill ${status ?? 'avail'}`}
-                          style={scheduled
-                            ? { background: `${s.color}26`, borderColor: s.color }
-                            : status === 'declined' ? undefined : { borderColor: 'var(--border-strong)' }}
-                          title={`${s.name} ${hhmm(s.start_time)}–${hhmm(s.end_time)} — ${status ? STATUS_TITLE[status] : 'disponível: clique para escalar'}`}
-                          onClick={() => {
-                            if (!e || e.status === 'declined') onAssign(p.id, d, s.id)
-                            else if (e.status === 'draft') onRemove(e.id)
-                          }}>
-                          <ShiftIcon shift={s} on={!!scheduled} />
-                        </button>
+                        <ShiftPill key={s.id} shift={s} state={st} selAreaName={selAreaName}
+                          onAssign={() => onAssign(p.id, d, s.id)} onRemove={onRemove} />
                       )
                     })}
                   </td>
@@ -778,6 +798,76 @@ function BalanceView({ dates, shifts, people, availability, entries, sortMode, o
       {rows.every((r) => r.possible === 0) && (
         <Empty msg="Nenhum FREE marcou disponibilidade nesta semana." />
       )}
+    </div>
+  )
+}
+
+// Matriz CLT × dias: mesmo modelo da dos FREE, mas "possível" vem dos dias fixos.
+// CLT é fixo — a tabela só ajuda o gerente a enxergar a cobertura por dia/escala.
+function CltBalanceView({ dates, shifts, people, entries, areas, selArea, selAreaName, onAssign, onRemove }: {
+  dates: string[]
+  shifts: Shift[]
+  people: Person[]
+  entries: ScheduleEntry[]
+  areas: Area[]
+  selArea: string
+  selAreaName: string
+  onAssign: (personId: string, date: string, shiftId: string) => void
+  onRemove: (entryId: string) => void
+}) {
+  const clts = people.filter((p) => p.type === 'clt')
+  if (clts.length === 0) return null
+  const fixedHas = (p: Person, d: string, sid: string) =>
+    (p.fixed_days?.[FIXED_KEYS[weekdayIdx(d)]] ?? []).includes(sid)
+  const rows = clts
+    .map((p) => ({
+      p,
+      scheduled: entries.filter((e) => e.person_id === p.id && e.status !== 'declined').length,
+    }))
+    .sort((a, b) => a.p.display_name.localeCompare(b.p.display_name))
+
+  return (
+    <div className="card balance-card">
+      <div className="balance-head">
+        <h2><UserIcon size={18} /> CLT (fixos)</h2>
+        <span className="muted">cobertura da semana — dias fixos por escala</span>
+      </div>
+      <div className="grid-scroll">
+        <table className="simple balance">
+          <thead>
+            <tr>
+              <th>CLT</th>
+              <th>Semana</th>
+              {dates.map((d) => (
+                <th key={d}>{WEEKDAYS_PT[weekdayIdx(d)]}<br />{fmtShort(d)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ p, scheduled }) => (
+              <tr key={p.id}>
+                <td className="nowrap">{p.icon} {p.display_name}</td>
+                <td className="nowrap week-cell">
+                  <span className="week-count">{scheduled}</span>
+                  <span className="muted">{scheduled === 1 ? 'escala' : 'escalas'}</span>
+                </td>
+                {dates.map((d) => (
+                  <td key={d}>
+                    {shifts.map((s) => {
+                      const st = pillStateOf(entries, selArea, areas, fixedHas(p, d, s.id), p.id, d, s.id)
+                      if (!st) return null
+                      return (
+                        <ShiftPill key={s.id} shift={s} state={st} selAreaName={selAreaName}
+                          onAssign={() => onAssign(p.id, d, s.id)} onRemove={onRemove} />
+                      )
+                    })}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

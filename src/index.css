@@ -34,8 +34,6 @@
 
   /* Chips por status (cor de texto varia por tema) */
   --chip-convoked:#fed7aa; --chip-confirmed:#bbf7d0; --chip-declined:#fecaca;
-  /* Lua "apagada" (disponível) — adapta via var() dentro do SVG */
-  --moon-body:#3f3f46; --moon-crater:#52525b; --moon-stroke:#a1a1aa;
 
   --radius:14px; --tap:44px;
   --font:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -70,7 +68,6 @@
   --grain-op:.04; --grain-blend:multiply; --halo-op:.5;
 
   --chip-convoked:#9a3412; --chip-confirmed:#15803d; --chip-declined:#b91c1c;
-  --moon-body:#e7e3db; --moon-crater:#c7c0b4; --moon-stroke:#9a938a;
 }
 
 /* ---------- Base -------------------------------------------- */
@@ -423,6 +420,50 @@ table.balance tbody tr:last-child td{border-bottom:none}
 .pill.icon-pill svg{display:block}
 .pill.declined svg{filter:grayscale(.6); opacity:.7}
 .letter-icon{font-weight:700; line-height:1}
+
+/* ---------- Escala tingida pela cor da escala ativa -------- */
+/* --area-color é setado no wrapper .area-scope conforme a escala selecionada.
+   A zebra/cabeçalho/células passam a tons dessa cor → fica óbvio qual escala
+   está sendo montada (some o "fundo sem nada" de antes). */
+.area-scope .balance-card{border-top:3px solid var(--area-color)}
+.area-scope table.balance thead th{background:color-mix(in srgb, var(--area-color) 14%, var(--glass))}
+.area-scope .balance tbody tr:nth-child(odd) td{background:color-mix(in srgb, var(--area-color) 9%, transparent)}
+.area-scope .balance tbody tr:hover td{background:color-mix(in srgb, var(--area-color) 20%, transparent)}
+.area-scope .grid-scroll table.schedule{border-top:3px solid var(--area-color)}
+.area-scope td.cell:not(.selected):not(.drop-over){background:color-mix(in srgb, var(--area-color) 5%, var(--cell))}
+.area-scope td.cell:not(.selected):not(.drop-over):hover{background:color-mix(in srgb, var(--area-color) 13%, transparent)}
+
+/* Pill "bloqueado" — pessoa já escalada em OUTRA escala neste dia+turno.
+   Cinza tracejado + ponto na cor da outra escala; clique move para a escala atual. */
+.pill.blocked{position:relative; opacity:.6; border-style:dashed; border-color:var(--border-strong); filter:grayscale(.5)}
+.pill.blocked:hover{opacity:.95; filter:none}
+.pill-other-dot{position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%;
+  background:var(--other-color, var(--dim)); box-shadow:0 0 0 1.5px var(--bg)}
+
+/* Modal: uma mensagem por escala, cada uma copiável */
+.area-msg + .area-msg{margin-top:1rem}
+.area-msg-head{display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem}
+.area-msg-head .area-dot{width:12px; height:12px; border-radius:4px; flex:none}
+.area-msg-head .spacer{flex:1}
+
+/* ---------- Presença (foi/faltou) ------------------------- */
+.presenca-day + .presenca-day{margin-top:.9rem}
+.presenca-day h2{margin-bottom:.6rem}
+.presenca-shift + .presenca-shift{margin-top:.7rem}
+.presenca-shift-head{padding-left:.6rem; font-weight:700; color:var(--ink-strong); margin-bottom:.4rem}
+.presenca-row{display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; padding:.5rem .3rem; border-bottom:1px solid var(--border)}
+.presenca-row:last-child{border-bottom:none}
+.presenca-who{display:inline-flex; align-items:center; gap:.4rem; flex:1; min-width:180px}
+.presenca-who .grow{font-weight:600; color:var(--ink-strong)}
+.presenca-toggle{display:inline-flex; gap:.3rem}
+.pres-btn{display:inline-flex; align-items:center; gap:.3rem; min-height:38px; padding:.35rem .8rem; border-radius:9px;
+  border:1.5px solid var(--border-2); background:var(--glass); color:var(--muted); font-family:var(--font); font-weight:600;
+  font-size:.82rem; cursor:pointer; transition:color .15s, background-color .15s, border-color .15s}
+.pres-btn:hover{color:var(--ink-strong)}
+.pres-btn:disabled{opacity:.5; cursor:not-allowed}
+.pres-btn.foi.active{background:var(--success-soft); border-color:var(--success); color:var(--success)}
+.pres-btn.faltou.active{background:var(--danger-soft); border-color:var(--danger); color:var(--chip-declined)}
+.presenca-row.declined .presenca-who .grow{text-decoration:line-through; opacity:.7}
 
 /* ---------- Banner demo ------------------------------------ */
 .demo-banner{position:relative; z-index:3; display:flex; align-items:center; justify-content:center; gap:.4rem;

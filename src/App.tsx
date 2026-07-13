@@ -7,6 +7,7 @@ import { Config } from './pages/admin/Config'
 import { Escala } from './pages/admin/Escala'
 import { Login } from './pages/admin/Login'
 import { Pessoas } from './pages/admin/Pessoas'
+import { Presenca } from './pages/admin/Presenca'
 import { Relatorios } from './pages/admin/Relatorios'
 import { Convite } from './pages/free/Convite'
 import { Disponibilidade } from './pages/free/Disponibilidade'
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<AdminShell />}>
             <Route path="/escala" element={<Escala />} />
+            <Route path="/presenca" element={<Presenca />} />
             <Route path="/pessoas" element={<Pessoas />} />
             <Route path="/config" element={<Config />} />
             <Route path="/relatorios" element={<Relatorios />} />

@@ -82,6 +82,7 @@ export function AdminShell() {
         <span className="brand-div" />
         <nav>
           <NavLink to="/escala">Escala</NavLink>
+          <NavLink to="/presenca">Presença</NavLink>
           <NavLink to="/pessoas">Pessoas</NavLink>
           <NavLink to="/relatorios">Relatórios</NavLink>
           <NavLink to="/config">Config</NavLink>

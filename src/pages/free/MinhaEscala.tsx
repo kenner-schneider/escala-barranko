@@ -4,7 +4,7 @@ import { dayLabelPT, hhmm, monthOf, todaySP } from '../../lib/dates'
 import { freeClaims, getFreeJwt } from '../../lib/freeAuth'
 import { freeSupabase } from '../../lib/supabase'
 import type { MonthlyCount } from '../../lib/types'
-import { CheckIcon, PartyIcon } from '../../components/icons'
+import { PartyIcon } from '../../components/icons'
 
 interface EntryRow {
   id: string
@@ -72,9 +72,7 @@ export function MinhaEscala() {
             <span className="chip free" style={{ borderColor: e.shifts?.color }}>
               {e.shifts?.name} {e.shifts ? `${hhmm(e.shifts.start_time)}–${hhmm(e.shifts.end_time)}` : ''}
             </span>
-            {e.status === 'confirmed'
-              ? <span className="badge" style={{ color: 'var(--success)' }}><CheckIcon size={12} /> confirmado</span>
-              : <span className="badge">aguardando sua confirmação no grupo</span>}
+            <span className="badge">você está escalado(a)</span>
           </div>
         </div>
       ))}
