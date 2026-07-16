@@ -9,17 +9,24 @@ import {
   FIXED_KEYS, addDays, addMonths, dayLabelPT, fmtShort, hhmm, mondayOf, monthLabelPT, monthOf,
   monthRange, todaySP, weekdayIdx, WEEKDAYS_PT,
 } from '../../lib/dates'
+import { shiftAbbr } from '../../lib/format'
+import { shiftsOverlap } from '../../lib/shifts'
+import {
+  computeScores, fetchScoreInputs, fmtScore, teamWeightOf, windowCutoff, windowWeeksOf,
+  type ScoreParts,
+} from '../../lib/score'
 import { buildMessagesByArea, type AreaMessage } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
 import type { Area, Availability, MonthlyCount, Person, ScheduleEntry, Shift } from '../../lib/types'
 import {
   ArrowDownIcon, ArrowUpIcon, BarChartIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon,
-  PlusIcon, ScaleIcon, SendIcon, UserIcon, XIcon,
+  PlusIcon, ScaleIcon, SendIcon, StarIcon, UserIcon, XIcon,
 } from '../../components/icons'
 
 type View = 'day' | 'week' | 'month'
-// 'fair' = quem menos trabalhou primeiro (reordena ao escalar) · 'alpha' = ordem fixa A–Z
-type SortMode = 'fair' | 'alpha'
+// 'fair' = quem menos trabalhou primeiro (reordena ao escalar) · 'alpha' = ordem fixa A–Z ·
+// 'rank' = melhor avaliado primeiro (score das avaliações; janela/pesos no Config)
+type SortMode = 'fair' | 'alpha' | 'rank'
 
 // Elegibilidade: escalas (setores) em que a pessoa concorre. null/[] = todas.
 // Ex.: quem só trabalha na cozinha e no bar não aparece na escala de atendimento.
@@ -36,9 +43,10 @@ export function Escala() {
   const [areaId, setAreaId] = useState<string>('')
   const [selected, setSelected] = useState<{ date: string; shiftId: string } | null>(null)
   const [showBalance, setShowBalance] = useState(true)
-  const [sortMode, setSortModeState] = useState<SortMode>(
-    () => (localStorage.getItem('escala.sort') === 'fair' ? 'fair' : 'alpha'),
-  )
+  const [sortMode, setSortModeState] = useState<SortMode>(() => {
+    const s = localStorage.getItem('escala.sort')
+    return s === 'fair' || s === 'rank' ? s : 'alpha'
+  })
   const setSortMode = (m: SortMode) => {
     localStorage.setItem('escala.sort', m)
     setSortModeState(m)
@@ -121,6 +129,16 @@ export function Escala() {
       return data as MonthlyCount[]
     },
   })
+  // Score das avaliações (janela oficial do Config) — só busca no modo ranking.
+  const cutoff = windowCutoff(windowWeeksOf(restaurant), todaySP())
+  const scoresQ = useQuery({
+    queryKey: ['scores', restaurant.id, cutoff, teamWeightOf(restaurant)],
+    enabled: sortMode === 'rank',
+    queryFn: async () =>
+      computeScores(await fetchScoreInputs(restaurant.id, cutoff), teamWeightOf(restaurant)),
+  })
+  const scores = scoresQ.data
+  const scoreOf = (pid: string) => scores?.get(pid)?.final ?? null
 
   const shifts = shiftsQ.data ?? []
   const people = peopleQ.data ?? []
@@ -140,6 +158,18 @@ export function Escala() {
     qc.invalidateQueries({ queryKey: ['counts'] })
   }
 
+  // Entrada da pessoa em turno DIFERENTE cujo horário cruza com o turno alvo (mesmo dia).
+  // O mesmo turno em outra escala não conta aqui — esse caso é "mover", não conflito.
+  const overlapOf = (personId: string, date: string, shiftId: string): ScheduleEntry | undefined => {
+    const target = shifts.find((s) => s.id === shiftId)
+    if (!target) return undefined
+    return entries.find((e) => {
+      if (e.person_id !== personId || e.date !== date || e.shift_id === shiftId || e.status === 'declined') return false
+      const other = shifts.find((s) => s.id === e.shift_id)
+      return !!other && shiftsOverlap(target, other)
+    })
+  }
+
   // --- Mutations ---
   const addEntry = useMutation({
     mutationFn: async (v: { personId: string; date: string; shiftId: string }) => {
@@ -157,6 +187,12 @@ export function Escala() {
         if (error) throw error
         return
       }
+      // Horários sobrepostos entre turnos diferentes: bloqueia (o banco também rejeita via trigger).
+      const conflict = overlapOf(v.personId, v.date, v.shiftId)
+      if (conflict) {
+        const s = shifts.find((x) => x.id === conflict.shift_id)
+        throw new Error(`Conflito de horário: ${personOf.get(v.personId)?.display_name ?? 'pessoa'} já está em ${s?.name ?? 'outro turno'} (${s ? `${hhmm(s.start_time)}–${hhmm(s.end_time)}` : ''}) neste dia.`)
+      }
       const { error } = await supabase.from('schedule_entries').insert({
         restaurant_id: restaurant.id, person_id: v.personId, date: v.date,
         shift_id: v.shiftId, area_id: selArea, status: 'draft', updated_by: profile.id,
@@ -164,7 +200,8 @@ export function Escala() {
       if (error) throw error
     },
     onSuccess: invalidate,
-    onError: () => setErr('Não foi possível adicionar à escala.'),
+    onError: (e) => setErr(e instanceof Error && e.message.startsWith('Conflito')
+      ? e.message : 'Não foi possível adicionar à escala.'),
   })
 
   const removeEntry = useMutation({
@@ -199,13 +236,19 @@ export function Escala() {
   const applyFixed = useMutation({
     mutationFn: async () => {
       if (!selArea) return
-      const rows: Record<string, unknown>[] = []
+      const rows: { restaurant_id: string; person_id: string; date: string; shift_id: string; area_id: string; status: string; updated_by: string }[] = []
       for (const date of gridDates) {
         const key = FIXED_KEYS[weekdayIdx(date)]
         for (const p of people.filter((x) => x.type === 'clt' && x.fixed_days && isEligible(x, selArea))) {
           for (const shiftId of p.fixed_days?.[key] ?? []) {
-            if (!shifts.some((s) => s.id === shiftId)) continue
+            const shift = shifts.find((s) => s.id === shiftId)
+            if (!shift) continue
             if (entries.some((e) => e.person_id === p.id && e.date === date && e.shift_id === shiftId)) continue
+            // Pula horários sobrepostos — com entradas existentes ou com fixos já neste lote
+            // (o trigger do banco rejeitaria o lote inteiro).
+            if (overlapOf(p.id, date, shiftId)) continue
+            if (rows.some((r) => r.person_id === p.id && r.date === date &&
+              shiftsOverlap(shift, shifts.find((s) => s.id === r.shift_id)!))) continue
             rows.push({
               restaurant_id: restaurant.id, person_id: p.id, date,
               shift_id: shiftId, area_id: selArea, status: 'draft', updated_by: profile.id,
@@ -257,6 +300,13 @@ export function Escala() {
     const slotEntries = entries.filter(
       (e) => e.date === selected.date && e.shift_id === selected.shiftId && e.status !== 'declined')
     const taken = new Set(slotEntries.map((e) => e.person_id))
+    // Escalados em turno com HORÁRIO sobreposto neste dia — fora da lista (conflito).
+    const targetShift = shifts.find((s) => s.id === selected.shiftId)
+    const conflicted = new Set(entries.filter((e) => {
+      if (e.date !== selected.date || e.shift_id === selected.shiftId || e.status === 'declined') return false
+      const other = shifts.find((s) => s.id === e.shift_id)
+      return !!targetShift && !!other && shiftsOverlap(targetShift, other)
+    }).map((e) => e.person_id))
     // Já escalados em OUTRA escala neste dia+turno — oferecer "mover pra cá".
     const otherArea = slotEntries
       .filter((e) => e.area_id !== selArea)
@@ -268,17 +318,21 @@ export function Escala() {
     // Em ordem alfabética a lista fica estável (não reordena ao escalar).
     const wk = (pid: string) => (view === 'week' ? weekCountOf(pid) : 0)
     const frees = people
-      .filter((p) => p.type === 'free' && isEligible(p, selArea) && availSet.has(p.id) && !taken.has(p.id))
+      .filter((p) => p.type === 'free' && isEligible(p, selArea) && availSet.has(p.id) && !taken.has(p.id) && !conflicted.has(p.id))
       .sort((a, b) =>
         sortMode === 'alpha'
           ? a.display_name.localeCompare(b.display_name)
-          : wk(a.id) - wk(b.id) ||
-            countOf(a.id, month) - countOf(b.id, month) ||
-            a.display_name.localeCompare(b.display_name))
-    const clts = people.filter((p) => p.type === 'clt' && isEligible(p, selArea) && !taken.has(p.id))
+          : sortMode === 'rank'
+            // Sem nota = 3 (neutro): novato não começa no fim da fila
+            ? (scoreOf(b.id) ?? 3) - (scoreOf(a.id) ?? 3) ||
+              a.display_name.localeCompare(b.display_name)
+            : wk(a.id) - wk(b.id) ||
+              countOf(a.id, month) - countOf(b.id, month) ||
+              a.display_name.localeCompare(b.display_name))
+    const clts = people.filter((p) => p.type === 'clt' && isEligible(p, selArea) && !taken.has(p.id) && !conflicted.has(p.id))
     return { frees, clts, month, otherArea }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, availability, entries, people, counts, view, sortMode, selArea, areas])
+  }, [selected, availability, entries, people, counts, view, sortMode, selArea, areas, shifts, scores])
 
   function onDragEnd(ev: DragEndEvent) {
     const activeId = String(ev.active.id)
@@ -376,7 +430,7 @@ export function Escala() {
         <>
           <BalanceView dates={gridDates} shifts={shifts} people={people}
             availability={availability} entries={entries} areas={areas} selArea={selArea} selAreaName={selAreaName}
-            sortMode={sortMode} onSortChange={setSortMode}
+            sortMode={sortMode} onSortChange={setSortMode} scores={scores}
             onAssign={(personId, date, shiftId) => addEntry.mutate({ personId, date, shiftId })}
             onRemove={(id) => removeEntry.mutate(id)} />
           <CltBalanceView dates={gridDates} shifts={shifts} people={people}
@@ -453,7 +507,9 @@ export function Escala() {
               </div>
               <p className="muted">
                 Escalando em <strong>{areas.find((a) => a.id === selArea)?.name}</strong> · FREE disponíveis ·{' '}
-                {sortMode === 'alpha' ? 'ordem A–Z' : 'quem menos trabalhou primeiro'}
+                {sortMode === 'alpha' ? 'ordem A–Z'
+                  : sortMode === 'rank' ? 'melhor avaliado primeiro'
+                  : 'quem menos trabalhou primeiro'}
               </p>
               {panel.frees.length === 0 && <Empty msg="Nenhum FREE disponível neste turno." />}
               <div className="person-list">
@@ -463,6 +519,11 @@ export function Escala() {
                   return (
                     <DraggablePerson key={p.id} person={p}
                       onAdd={() => addEntry.mutate({ personId: p.id, date: selected.date, shiftId: selected.shiftId })}>
+                      {sortMode === 'rank' && scoreOf(p.id) != null && (
+                        <span className="badge score" title="Score das avaliações (individual + equipe)">
+                          <StarIcon size={11} filled /> {fmtScore(scoreOf(p.id)!)}
+                        </span>
+                      )}
                       <span className={`badge ${over ? 'over' : ''}`}
                         title="Alerta gerencial — não é parecer trabalhista">
                         {view === 'week' ? `sem ${weekCountOf(p.id)} · ` : ''}{worked}/{limitOf(p)}
@@ -603,7 +664,7 @@ function EntryChip({ entry, person, onRemove }: {
 // Cai na inicial do nome quando não há rótulo. A fonte encolhe conforme o nº de chars
 // p/ caber no pill. O estado (escalado × disponível) vem da cor/preenchimento do pill.
 function ShiftIcon({ shift, size = 26 }: { shift: Shift; size?: number }) {
-  const text = ((shift.label ?? '').trim() || shift.name.charAt(0)).toUpperCase().slice(0, 3)
+  const text = shiftAbbr(shift)
   const scale = text.length >= 3 ? 0.32 : text.length === 2 ? 0.42 : 0.58
   return (
     <span className="letter-icon" style={{ fontSize: size * scale }} aria-hidden="true">
@@ -612,13 +673,14 @@ function ShiftIcon({ shift, size = 26 }: { shift: Shift; size?: number }) {
   )
 }
 
-type PillKind = 'avail' | 'here' | 'blocked'
-interface PillState { kind: PillKind; entry?: ScheduleEntry; area?: Area }
+type PillKind = 'avail' | 'here' | 'blocked' | 'conflict'
+interface PillState { kind: PillKind; entry?: ScheduleEntry; area?: Area; conflictShift?: Shift }
 
 // Estado do pill de um turno p/ uma pessoa, CIENTE da escala selecionada:
-// here = escalado nesta escala · blocked = escalado em OUTRA (mesmo dia+turno) · avail = possível e livre.
+// here = escalado nesta escala · blocked = escalado em OUTRA (mesmo dia+turno) ·
+// conflict = escalado em turno com HORÁRIO sobreposto (não pode) · avail = possível e livre.
 function pillStateOf(
-  entries: ScheduleEntry[], selArea: string, areas: Area[],
+  entries: ScheduleEntry[], shifts: Shift[], selArea: string, areas: Area[],
   possible: boolean, pid: string, d: string, sid: string,
 ): PillState | null {
   const e = entries.find((x) => x.person_id === pid && x.date === d && x.shift_id === sid)
@@ -627,7 +689,21 @@ function pillStateOf(
       ? { kind: 'here', entry: e }
       : { kind: 'blocked', entry: e, area: areas.find((a) => a.id === e.area_id) }
   }
-  return possible ? { kind: 'avail', entry: e ?? undefined } : null
+  if (!possible) return null
+  const target = shifts.find((s) => s.id === sid)
+  const conflict = target && entries.find((x) => {
+    if (x.person_id !== pid || x.date !== d || x.shift_id === sid || x.status === 'declined') return false
+    const other = shifts.find((s) => s.id === x.shift_id)
+    return !!other && shiftsOverlap(target, other)
+  })
+  if (conflict) {
+    return {
+      kind: 'conflict', entry: conflict,
+      conflictShift: shifts.find((s) => s.id === conflict.shift_id),
+      area: areas.find((a) => a.id === conflict.area_id),
+    }
+  }
+  return { kind: 'avail', entry: e ?? undefined }
 }
 
 function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
@@ -660,6 +736,16 @@ function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
       </button>
     )
   }
+  if (state.kind === 'conflict') {
+    const other = state.conflictShift
+    return (
+      <button className="pill icon-pill conflict" style={svar} disabled
+        title={`${shift.name} ${time} — conflito de horário: já em ${other?.name ?? 'outro turno'}${other ? ` (${hhmm(other.start_time)}–${hhmm(other.end_time)})` : ''}${state.area ? ` · ${state.area.name}` : ''}`}>
+        <ShiftIcon shift={shift} />
+        <span className="pill-conflict-x" aria-hidden="true">×</span>
+      </button>
+    )
+  }
   return (
     <button className="pill icon-pill avail" style={svar}
       title={`${shift.name} ${time} — disponível: clique para escalar em ${selAreaName}`}
@@ -671,7 +757,7 @@ function ShiftPill({ shift, state, selAreaName, onAssign, onRemove }: {
 
 // Matriz FREE × dias: todas as possibilidades da semana para escalar com igualdade.
 // Contorno = disponível (clique escala) · preenchido = escalado · quem menos trabalhou vem primeiro.
-function BalanceView({ dates, shifts, people, availability, entries, areas, selArea, selAreaName, sortMode, onSortChange, onAssign, onRemove }: {
+function BalanceView({ dates, shifts, people, availability, entries, areas, selArea, selAreaName, sortMode, onSortChange, scores, onAssign, onRemove }: {
   dates: string[]
   shifts: Shift[]
   people: Person[]
@@ -682,12 +768,14 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
   selAreaName: string
   sortMode: SortMode
   onSortChange: (m: SortMode) => void
+  scores?: Map<string, ScoreParts>
   onAssign: (personId: string, date: string, shiftId: string) => void
   onRemove: (entryId: string) => void
 }) {
   const frees = people.filter((p) => p.type === 'free' && isEligible(p, selArea))
   const availOf = (pid: string, d: string, s: string) =>
     availability.some((a) => a.person_id === pid && a.date === d && a.shift_id === s)
+  const scoreOf = (pid: string) => scores?.get(pid)?.final ?? null
 
   const rows = frees
     .map((p) => {
@@ -703,8 +791,12 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
     .sort((a, b) =>
       sortMode === 'alpha'
         ? a.p.display_name.localeCompare(b.p.display_name)
-        : a.scheduled - b.scheduled || b.possible - a.possible ||
-          a.p.display_name.localeCompare(b.p.display_name))
+        : sortMode === 'rank'
+          // Sem nota = 3 (neutro): novato não começa no fim da fila
+          ? (scoreOf(b.p.id) ?? 3) - (scoreOf(a.p.id) ?? 3) ||
+            a.p.display_name.localeCompare(b.p.display_name)
+          : a.scheduled - b.scheduled || b.possible - a.possible ||
+            a.p.display_name.localeCompare(b.p.display_name))
 
   // Estatísticas da semana (só entre FREEs com alguma possibilidade)
   const participants = rows.filter((r) => r.possible > 0)
@@ -741,6 +833,11 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
             title="Ordem fixa por nome — a lista não muda enquanto você escala"
             onClick={() => onSortChange('alpha')}>
             A–Z
+          </button>
+          <button className={sortMode === 'rank' ? 'active' : ''}
+            title="Melhores notas primeiro — score das avaliações (pesos e janela no Config)"
+            onClick={() => onSortChange('rank')}>
+            <StarIcon size={14} /> Ranking
           </button>
         </div>
       </div>
@@ -791,7 +888,15 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
           <tbody>
             {rows.map(({ p, possible, scheduled }) => (
               <tr key={p.id}>
-                <td className="nowrap">{p.icon} {p.display_name}</td>
+                <td className="nowrap">
+                  {p.icon} {p.display_name}
+                  {sortMode === 'rank' && scoreOf(p.id) != null && (
+                    <span className="badge score" style={{ marginLeft: '.35rem' }}
+                      title="Score das avaliações (individual + equipe)">
+                      <StarIcon size={11} filled /> {fmtScore(scoreOf(p.id)!)}
+                    </span>
+                  )}
+                </td>
                 <td className="nowrap week-cell" title="Vezes escalado / possibilidades na semana">
                   <span className="week-count">{scheduled}</span>
                   <span className="muted">de {possible}</span>
@@ -802,7 +907,7 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
                 {dates.map((d) => (
                   <td key={d}>
                     {shifts.map((s) => {
-                      const st = pillStateOf(entries, selArea, areas, availOf(p.id, d, s.id), p.id, d, s.id)
+                      const st = pillStateOf(entries, shifts, selArea, areas, availOf(p.id, d, s.id), p.id, d, s.id)
                       if (!st) return null
                       return (
                         <ShiftPill key={s.id} shift={s} state={st} selAreaName={selAreaName}
@@ -875,7 +980,7 @@ function CltBalanceView({ dates, shifts, people, entries, areas, selArea, selAre
                 {dates.map((d) => (
                   <td key={d}>
                     {shifts.map((s) => {
-                      const st = pillStateOf(entries, selArea, areas, fixedHas(p, d, s.id), p.id, d, s.id)
+                      const st = pillStateOf(entries, shifts, selArea, areas, fixedHas(p, d, s.id), p.id, d, s.id)
                       if (!st) return null
                       return (
                         <ShiftPill key={s.id} shift={s} state={st} selAreaName={selAreaName}

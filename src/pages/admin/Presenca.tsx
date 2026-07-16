@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdmin } from '../../components/AdminShell'
-import { Empty, ErrorMsg, Loading } from '../../components/ui'
+import { Empty, ErrorMsg, Loading, StarRating } from '../../components/ui'
 import { addDays, dayLabelPT, fmtShort, hhmm, mondayOf, todaySP } from '../../lib/dates'
+import { fmtBRL, parseValorBRL } from '../../lib/format'
 import { supabase } from '../../lib/supabase'
-import type { Area, Person, ScheduleEntry, Shift } from '../../lib/types'
+import type { Area, EntryNote, Person, ScheduleEntry, Shift, TeamReview } from '../../lib/types'
 import {
-  CalendarCheckIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, XIcon,
+  CalendarCheckIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, XIcon,
 } from '../../components/icons'
 
 // Presença pós-trabalho: confirma se cada escalado FOI (confirmed) ou FALTOU (declined).
@@ -65,6 +66,37 @@ export function Presenca() {
   const personOf = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const areaOf = useMemo(() => new Map(areas.map((a) => [a.id, a])), [areas])
 
+  // Anotações (consumo) das entradas da semana — tabela própria, invisível ao FREE.
+  const entryIds = entries.map((e) => e.id)
+  const notesQ = useQuery({
+    queryKey: ['entry_notes', restaurant.id, range.start, range.end],
+    enabled: entriesQ.isSuccess,
+    queryFn: async () => {
+      if (entryIds.length === 0) return [] as EntryNote[]
+      const { data, error } = await supabase.from('entry_notes').select('*').in('entry_id', entryIds)
+      if (error) throw error
+      return data as EntryNote[]
+    },
+  })
+  const notes = notesQ.data ?? []
+  const noteOf = useMemo(() => new Map(notes.map((n) => [n.entry_id, n])), [notes])
+  const [noteFor, setNoteFor] = useState<string | null>(null)
+
+  // Nota da equipe (1–5) por serviço (dia+turno) — alimenta o componente "equipe" do score.
+  const teamQ = useQuery({
+    queryKey: ['team_reviews', restaurant.id, range.start, range.end],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('team_reviews').select('*')
+        .eq('restaurant_id', restaurant.id).gte('date', range.start).lte('date', range.end)
+      if (error) throw error
+      return data as TeamReview[]
+    },
+  })
+  const teamOf = useMemo(
+    () => new Map((teamQ.data ?? []).map((t) => [`${t.date}|${t.shift_id}`, t])),
+    [teamQ.data],
+  )
+
   const setStatus = useMutation({
     mutationFn: async (v: { id: string; status: 'convoked' | 'confirmed' | 'declined' }) => {
       const { error } = await supabase.from('schedule_entries')
@@ -78,6 +110,48 @@ export function Presenca() {
     onError: () => setErr('Não foi possível salvar a presença.'),
   })
 
+  const saveNote = useMutation({
+    mutationFn: async (v: { entry_id: string; note: string; value: number | null }) => {
+      if (!v.note && v.value == null) {
+        const { error } = await supabase.from('entry_notes').delete().eq('entry_id', v.entry_id)
+        if (error) throw error
+        return
+      }
+      const { error } = await supabase.from('entry_notes').upsert({
+        entry_id: v.entry_id, restaurant_id: restaurant.id,
+        note: v.note, value: v.value, updated_by: profile.id,
+      }, { onConflict: 'entry_id' })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      setNoteFor(null)
+      qc.invalidateQueries({ queryKey: ['entry_notes'] })
+    },
+    onError: () => setErr('Não foi possível salvar a anotação.'),
+  })
+
+  const saveTeam = useMutation({
+    mutationFn: async (v: { date: string; shift_id: string; score: number | null }) => {
+      if (v.score == null) {
+        const { error } = await supabase.from('team_reviews').delete()
+          .eq('restaurant_id', restaurant.id).eq('date', v.date).eq('shift_id', v.shift_id)
+        if (error) throw error
+        return
+      }
+      const { error } = await supabase.from('team_reviews').upsert({
+        restaurant_id: restaurant.id, date: v.date, shift_id: v.shift_id,
+        score: v.score, updated_by: profile.id,
+      }, { onConflict: 'restaurant_id,date,shift_id' })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team_reviews'] })
+      qc.invalidateQueries({ queryKey: ['scores'] })
+      qc.invalidateQueries({ queryKey: ['week_report'] })
+    },
+    onError: () => setErr('Não foi possível salvar a nota da equipe.'),
+  })
+
   if (shiftsQ.isLoading || peopleQ.isLoading || areasQ.isLoading || entriesQ.isLoading) return <Loading />
 
   // Só dias já passados (incluindo hoje) e apenas escalas publicadas (não rascunho).
@@ -89,6 +163,7 @@ export function Presenca() {
   const present = published.filter((e) => e.status === 'confirmed').length
   const absent = published.filter((e) => e.status === 'declined').length
   const pending = published.filter((e) => e.status === 'convoked').length
+  const weekConsumo = notes.reduce((sum, n) => sum + (n.value ?? 0), 0)
 
   return (
     <div>
@@ -105,6 +180,11 @@ export function Presenca() {
         </span>
         <span className="badge over">{absent} falta{absent === 1 ? '' : 's'}</span>
         {pending > 0 && <span className="badge">{pending} pendente{pending === 1 ? '' : 's'}</span>}
+        {weekConsumo > 0 && (
+          <span className="badge" title="Soma dos valores anotados na semana">
+            <PencilIcon size={12} /> {fmtBRL(weekConsumo)}
+          </span>
+        )}
       </div>
 
       {pastDates.length === 0 && (
@@ -124,11 +204,19 @@ export function Presenca() {
                 <div className="presenca-shift" key={shift.id}>
                   <div className="presenca-shift-head" style={{ borderLeft: `4px solid ${shift.color}` }}>
                     {shift.name} <span className="muted">{hhmm(shift.start_time)}–{hhmm(shift.end_time)}</span>
+                    <span className="spacer" />
+                    <span className="team-rate-label muted">Equipe</span>
+                    <StarRating size={15}
+                      value={teamOf.get(`${date}|${shift.id}`)?.score ?? null}
+                      disabled={saveTeam.isPending}
+                      label={`Nota da equipe — ${shift.name}, ${dayLabelPT(date)}`}
+                      onChange={(v) => saveTeam.mutate({ date, shift_id: shift.id, score: v })} />
                   </div>
                   {rows.map((e) => {
                     const p = personOf.get(e.person_id)
                     const area = areaOf.get(e.area_id)
                     if (!p) return null
+                    const note = noteOf.get(e.id)
                     const setTo = (s: 'confirmed' | 'declined') =>
                       setStatus.mutate({ id: e.id, status: e.status === s ? 'convoked' : s })
                     return (
@@ -138,6 +226,9 @@ export function Presenca() {
                           {p.type === 'clt' && <span className="badge">CLT</span>}
                           {area && (
                             <span className="badge" style={{ borderColor: area.color }}>{area.name}</span>
+                          )}
+                          {note && note.value != null && (
+                            <span className="badge" title={note.note}>{fmtBRL(note.value)}</span>
                           )}
                         </span>
                         <div className="presenca-toggle">
@@ -153,7 +244,23 @@ export function Presenca() {
                             onClick={() => setTo('declined')}>
                             <XIcon size={14} /> Faltou
                           </button>
+                          <button
+                            className={`pres-btn nota ${note ? 'active' : ''}`}
+                            title="Anotações (consumo)"
+                            aria-label={`Anotações de ${p.display_name}`}
+                            onClick={() => setNoteFor(noteFor === e.id ? null : e.id)}>
+                            <PencilIcon size={14} />
+                          </button>
                         </div>
+                        {noteFor === e.id && (
+                          <NoteEditor
+                            key={e.id}
+                            note={note}
+                            saving={saveNote.isPending}
+                            onCancel={() => setNoteFor(null)}
+                            onSave={(v) => saveNote.mutate({ entry_id: e.id, ...v })}
+                          />
+                        )}
                       </div>
                     )
                   })}
@@ -170,7 +277,46 @@ export function Presenca() {
 
       <p className="muted" style={{ marginTop: '.6rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
         <CalendarCheckIcon size={15} /> Falta não conta como dia trabalhado nos relatórios. Clique de novo para desmarcar.
+        Use o lápis para anotar consumo (o valor em R$ é opcional e soma no relatório do mês).
+        As estrelas dão a nota da equipe daquele serviço — ela entra no score de quem esteve presente.
       </p>
+    </div>
+  )
+}
+
+// Editor da anotação — monta já com o conteúdo salvo; salvar com tudo vazio apaga a nota.
+function NoteEditor({ note, saving, onSave, onCancel }: {
+  note: EntryNote | undefined
+  saving: boolean
+  onSave: (v: { note: string; value: number | null }) => void
+  onCancel: () => void
+}) {
+  const [text, setText] = useState(note?.note ?? '')
+  const [valor, setValor] = useState(note?.value != null ? String(note.value).replace('.', ',') : '')
+  return (
+    <div className="presenca-note">
+      <textarea
+        autoFocus
+        placeholder="Consumo / observações — ex.: 1 coca, 1 água c/ gás"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="presenca-note-foot">
+        <input
+          inputMode="decimal"
+          placeholder="Valor R$ (opcional)"
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+        />
+        <div className="spacer" />
+        <button className="btn small" onClick={onCancel}>Cancelar</button>
+        <button
+          className="btn small primary"
+          disabled={saving}
+          onClick={() => onSave({ note: text.trim(), value: parseValorBRL(valor) })}>
+          {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
     </div>
   )
 }

@@ -2,6 +2,8 @@ export interface RestaurantSettings {
   availability_lead_hours: number
   default_monthly_limit: number
   message_template?: string
+  review_team_weight?: number    // % do score que vem da equipe (default 20)
+  ranking_window_weeks?: number  // janela oficial do ranking; 0/ausente = todo o período
 }
 
 export interface Restaurant {
@@ -76,6 +78,51 @@ export interface Availability {
   person_id: string
   date: string
   shift_id: string
+}
+
+// Critério objetivo de avaliação (definido pelo restaurante no Config), com peso.
+export interface Criterion {
+  id: string
+  restaurant_id: string
+  name: string
+  weight: number
+  sort_order: number
+  active: boolean
+}
+
+// Avaliação individual semanal: notas 1–5 por critério ({criterion_id: nota}).
+// week = segunda-feira ISO da semana avaliada.
+export interface PersonReview {
+  id: string
+  restaurant_id: string
+  person_id: string
+  week: string
+  scores: Record<string, number>
+  note: string | null
+  updated_by: string | null
+  updated_at: string
+}
+
+// Nota da equipe (1–5) por serviço (dia+turno) — preenchida na aba Presença.
+export interface TeamReview {
+  id: string
+  restaurant_id: string
+  date: string
+  shift_id: string
+  score: number
+  note: string | null
+  updated_by: string | null
+  updated_at: string
+}
+
+// Anotação do gestor por presença (consumo). Tabela separada: invisível ao FREE.
+export interface EntryNote {
+  entry_id: string
+  restaurant_id: string
+  note: string
+  value: number | null   // R$ a descontar (opcional)
+  updated_by: string | null
+  updated_at: string
 }
 
 export interface MonthlyCount {

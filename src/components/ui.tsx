@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react'
-import { CheckIcon, XIcon } from './icons'
+import { CheckIcon, StarIcon, XIcon } from './icons'
 
 export const Spinner = () => <div className="spinner" role="status" aria-label="Carregando" />
 
@@ -31,6 +31,31 @@ export function Modal({ title, onClose, children }: {
         {children}
       </div>
     </div>
+  )
+}
+
+// Nota 1–5 em estrelas. Clicar na nota atual limpa (volta a "sem nota").
+export function StarRating({ value, onChange, size = 16, disabled, label }: {
+  value: number | null
+  onChange: (v: number | null) => void
+  size?: number
+  disabled?: boolean
+  label?: string
+}) {
+  return (
+    <span className="star-rate" role="group" aria-label={label ?? 'Nota de 1 a 5'}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button"
+          className={`star-btn ${value != null && n <= value ? 'on' : ''}`}
+          disabled={disabled}
+          aria-label={`${n} de 5`}
+          aria-pressed={value === n}
+          title={value === n ? `${n}/5 — clique para limpar` : `${n}/5`}
+          onClick={() => onChange(value === n ? null : n)}>
+          <StarIcon size={size} filled={value != null && n <= value} />
+        </button>
+      ))}
+    </span>
   )
 }
 

@@ -1,7 +1,7 @@
 // Modo demonstração: banco em memória p/ testar interface/usabilidade sem Supabase.
 // Ativado com `npm run demo` (VITE_DEMO=1). Nada aqui roda em produção.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { addDays, monthOf, todaySP, weekdayIdx } from './dates'
+import { addDays, mondayOf, monthOf, todaySP, weekdayIdx } from './dates'
 
 type Row = Record<string, any>
 
@@ -15,6 +15,8 @@ const A2 = 'dddddddd-0000-0000-0000-000000000002' // Cozinha
 const A3 = 'dddddddd-0000-0000-0000-000000000003' // Bar
 const P = (n: number) => `ffffffff-0000-0000-0000-${String(n).padStart(12, '0')}`
 const C = (n: number) => `cccccccc-0000-0000-0000-00000000000${n}`
+const K = (n: number) => `eeeeeeee-0000-0000-0000-00000000000${n}` // critérios
+const S3 = 'aaaaaaaa-0000-0000-0000-000000000003' // Noite 2º turno (sobrepõe a Noite)
 
 const today = todaySP()
 const uuid = () => crypto.randomUUID()
@@ -32,6 +34,8 @@ const db: Record<string, Row[]> = {
   shifts: [
     { id: S1, restaurant_id: R, name: 'Meio-dia', start_time: '11:00', end_time: '15:00', color: '#f59e0b', label: 'MD', active: true },
     { id: S2, restaurant_id: R, name: 'Noite', start_time: '18:00', end_time: '23:00', color: '#3b82f6', label: 'N', active: true },
+    // Sobrepõe a "Noite" — p/ testar o bloqueio de conflito de horário
+    { id: S3, restaurant_id: R, name: 'Noite 2º turno', start_time: '19:00', end_time: '23:59', color: '#8b5cf6', label: 'N2', active: true },
   ],
   areas: [
     { id: A1, restaurant_id: R, name: 'Salão', color: '#3b82f6', sort_order: 0, active: true },
@@ -55,12 +59,20 @@ const db: Record<string, Row[]> = {
   ],
   availability: [],
   schedule_entries: [],
+  entry_notes: [],
+  criteria: [
+    { id: K(1), restaurant_id: R, name: 'Pontualidade', weight: 2, sort_order: 0, active: true },
+    { id: K(2), restaurant_id: R, name: 'Agilidade', weight: 1, sort_order: 1, active: true },
+    { id: K(3), restaurant_id: R, name: 'Postura com o cliente', weight: 1, sort_order: 2, active: true },
+  ],
+  person_reviews: [],
+  team_reviews: [],
 }
 
 // Disponibilidade dos próximos 14 dias, por padrão de dia da semana
 // (0=dom, 1=seg, 2=ter, 3=qua, 4=qui, 5=sex, 6=sáb) — cenários variados p/ testar equilíbrio:
 const AVAIL_PATTERNS: { person: string; days: number[]; shifts: string[] }[] = [
-  { person: P(1), days: [0, 1, 2, 3, 4, 5, 6], shifts: [S1, S2] }, // Fernanda: todos os dias, 2 turnos
+  { person: P(1), days: [0, 1, 2, 3, 4, 5, 6], shifts: [S1, S2, S3] }, // Fernanda: todos os dias, 3 turnos (S2×S3 testam conflito)
   { person: P(2), days: [1, 2, 3, 4, 5], shifts: [S2] },           // Fabio: noites de seg a sex
   { person: P(3), days: [2, 4], shifts: [S1] },                    // Flavia: só ter/qui meio-dia (2x específicos)
   { person: P(4), days: [5, 6, 0], shifts: [S2] },                 // Felipe: noites de fim de semana
@@ -104,6 +116,36 @@ db.schedule_entries.push(
   entry(P(3), addDays(today, 2), S1, 'convoked', A3),
   entry(C(1), addDays(today, 1), S1, 'draft', A2),
   entry(P(5), addDays(today, 2), S1, 'draft', A1),
+)
+
+// Anotação de consumo de exemplo (aba Presença) na presença confirmada de ontem
+const notedEntry = db.schedule_entries.find((e) => e.status === 'confirmed')
+if (notedEntry) {
+  db.entry_notes.push({
+    entry_id: notedEntry.id, restaurant_id: R, note: '1 coca, 1 água c/ gás',
+    value: 9.5, updated_by: ADMIN, updated_at: new Date().toISOString(),
+  })
+}
+
+// Avaliações de exemplo: individuais da semana passada + notas de equipe de serviços passados
+const lastMonday = mondayOf(addDays(today, -7))
+const review = (person_id: string, scores: Record<string, number>): Row => ({
+  id: uuid(), restaurant_id: R, person_id, week: lastMonday, scores,
+  note: null, updated_by: ADMIN, updated_at: new Date().toISOString(),
+})
+db.person_reviews.push(
+  review(P(1), { [K(1)]: 5, [K(2)]: 4, [K(3)]: 5 }), // Fernanda ~4,8
+  review(P(2), { [K(1)]: 4, [K(2)]: 3, [K(3)]: 4 }), // Fabio ~3,8
+  review(P(4), { [K(1)]: 2, [K(2)]: 3, [K(3)]: 3 }), // Felipe ~2,5
+)
+const teamReview = (date: string, shift_id: string, score: number): Row => ({
+  id: uuid(), restaurant_id: R, date, shift_id, score,
+  note: null, updated_by: ADMIN, updated_at: new Date().toISOString(),
+})
+db.team_reviews.push(
+  teamReview(addDays(today, -5), S2, 4),
+  teamReview(addDays(today, -3), S1, 5),
+  teamReview(addDays(today, -1), S1, 3),
 )
 
 function computeCounts(): Row[] {

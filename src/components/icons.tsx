@@ -83,6 +83,26 @@ export const UserIcon = (p: IconProps) => (
   </Base>
 )
 
+// Estrela de avaliação — `filled` pinta por dentro (nota marcada)
+export const StarIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Base {...p} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.3l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9L12 2.5z" />
+  </Base>
+)
+
+export const TrophyIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 0 1-10 0V4z" />
+    <path d="M7 6H4.5a1.5 1.5 0 0 0 0 3H7M17 6h2.5a1.5 1.5 0 0 1 0 3H17" />
+  </Base>
+)
+
+export const PencilIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+  </Base>
+)
+
 export const XIcon = (p: IconProps) => (
   <Base {...p}><path d="M18 6 6 18M6 6l12 12" /></Base>
 )

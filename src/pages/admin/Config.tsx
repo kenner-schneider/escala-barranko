@@ -5,7 +5,7 @@ import { ErrorMsg, Loading } from '../../components/ui'
 import { hhmm } from '../../lib/dates'
 import { DEFAULT_TEMPLATE } from '../../lib/messages'
 import { supabase } from '../../lib/supabase'
-import type { Area, Shift } from '../../lib/types'
+import type { Area, Criterion, Shift } from '../../lib/types'
 import { CheckIcon } from '../../components/icons'
 
 export function Config() {
@@ -17,6 +17,8 @@ export function Config() {
   const [lead, setLead] = useState(String(restaurant.settings.availability_lead_hours ?? 48))
   const [limit, setLimit] = useState(String(restaurant.settings.default_monthly_limit ?? 10))
   const [template, setTemplate] = useState(restaurant.settings.message_template ?? DEFAULT_TEMPLATE)
+  const [teamWeight, setTeamWeight] = useState(String(restaurant.settings.review_team_weight ?? 20))
+  const [windowWeeks, setWindowWeeks] = useState(String(restaurant.settings.ranking_window_weeks ?? 0))
   const [saved, setSaved] = useState(false)
 
   const saveSettings = useMutation({
@@ -26,6 +28,8 @@ export function Config() {
         availability_lead_hours: Math.max(0, parseInt(lead) || 48),
         default_monthly_limit: Math.max(1, parseInt(limit) || 10),
         message_template: template,
+        review_team_weight: Math.min(100, Math.max(0, parseInt(teamWeight) || 0)),
+        ranking_window_weeks: Math.max(0, parseInt(windowWeeks) || 0),
       }
       const { error } = await supabase.from('restaurants').update({ settings }).eq('id', restaurant.id)
       if (error) throw error
@@ -106,10 +110,46 @@ export function Config() {
     setEditingArea(null)
   }
 
-  if (shiftsQ.isLoading || areasQ.isLoading) return <Loading />
+  // --- Critérios de avaliação ---
+  const criteriaQ = useQuery({
+    queryKey: ['criteria', restaurant.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('criteria').select('*')
+        .eq('restaurant_id', restaurant.id).eq('active', true)
+        .order('sort_order')
+      if (error) throw error
+      return data as Criterion[]
+    },
+  })
+
+  const upsertCriterion = useMutation({
+    mutationFn: async (c: Partial<Criterion>) => {
+      const { error } = c.id
+        ? await supabase.from('criteria').update(c).eq('id', c.id)
+        : await supabase.from('criteria').insert({
+            ...c, restaurant_id: restaurant.id, sort_order: criteriaQ.data?.length ?? 0,
+          })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['criteria'] }),
+    onError: () => setErr('Não foi possível salvar o critério.'),
+  })
+
+  const [editingCrit, setEditingCrit] = useState<Partial<Criterion> | null>(null)
+
+  function submitCriterion(e: FormEvent) {
+    e.preventDefault()
+    if (!editingCrit?.name || !editingCrit.weight || editingCrit.weight <= 0) return
+    upsertCriterion.mutate(editingCrit)
+    setEditingCrit(null)
+  }
+
+  if (shiftsQ.isLoading || areasQ.isLoading || criteriaQ.isLoading) return <Loading />
 
   const shifts = shiftsQ.data ?? []
   const areas = areasQ.data ?? []
+  const criteria = criteriaQ.data ?? []
 
   return (
     <div>
@@ -244,6 +284,84 @@ export function Config() {
             <button type="button" className="btn" onClick={() => setEditingArea(null)}>Cancelar</button>
           </form>
         )}
+      </div>
+
+      <div className="card">
+        <h2>Avaliação e ranking</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Critérios objetivos usados na avaliação individual semanal (notas 1–5). O peso
+          define quanto cada critério conta na média. O ranking ordena quem tem as melhores notas.
+        </p>
+        {criteria.length === 0 && (
+          <div className="empty">Nenhum critério. Cadastre para habilitar avaliações e ranking (ex.: Pontualidade, Agilidade).</div>
+        )}
+        {criteria.length > 0 && (
+          <table className="simple">
+            <tbody>
+              {criteria.map((c) => (
+                <tr key={c.id}>
+                  <td><span className="chip">{c.name}</span></td>
+                  <td>peso <strong>{c.weight}</strong></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="btn small" onClick={() => setEditingCrit(c)}>Editar</button>{' '}
+                    <button
+                      className="btn small danger"
+                      onClick={() => {
+                        if (confirm(`Desativar o critério "${c.name}"? Ele deixa de contar nas avaliações; o histórico é preservado.`)) {
+                          upsertCriterion.mutate({ id: c.id, active: false })
+                        }
+                      }}
+                    >
+                      Desativar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!editingCrit && (
+          <button className="btn" style={{ marginTop: '.6rem' }}
+            onClick={() => setEditingCrit({ name: '', weight: 1 })}>
+            + Novo critério
+          </button>
+        )}
+        {editingCrit && (
+          <form onSubmit={submitCriterion} style={{ marginTop: '.75rem' }}>
+            <div className="form-row">
+              <label className="field">Nome
+                <input value={editingCrit.name ?? ''} required autoFocus placeholder="Ex.: Pontualidade"
+                  onChange={(e) => setEditingCrit({ ...editingCrit, name: e.target.value })} />
+              </label>
+              <label className="field">Peso
+                <input type="number" min={0.5} max={10} step={0.5} value={editingCrit.weight ?? 1} required
+                  onChange={(e) => setEditingCrit({ ...editingCrit, weight: Number(e.target.value) })} />
+              </label>
+            </div>
+            <button className="btn primary">{editingCrit.id ? 'Salvar critério' : 'Criar critério'}</button>{' '}
+            <button type="button" className="btn" onClick={() => setEditingCrit(null)}>Cancelar</button>
+          </form>
+        )}
+        <div className="form-row" style={{ marginTop: '.9rem' }}>
+          <label className="field">Peso da nota da equipe no score (%)
+            <input type="number" min={0} max={100} value={teamWeight}
+              onChange={(e) => setTeamWeight(e.target.value)} />
+          </label>
+          <label className="field">Janela oficial do ranking
+            <select value={windowWeeks} onChange={(e) => setWindowWeeks(e.target.value)}>
+              <option value="0">Todo o período</option>
+              <option value="4">Últimas 4 semanas</option>
+              <option value="8">Últimas 8 semanas</option>
+              <option value="12">Últimas 12 semanas</option>
+            </select>
+          </label>
+        </div>
+        <p className="muted">
+          Score = {100 - Math.min(100, Math.max(0, parseInt(teamWeight) || 0))}% avaliação individual
+          + {Math.min(100, Math.max(0, parseInt(teamWeight) || 0))}% nota da equipe dos serviços em que a
+          pessoa esteve presente. A janela oficial é a usada na ordenação por ranking da Escala;
+          na aba Ranking dá para visualizar outros recortes.
+        </p>
       </div>
 
       <div className="card">

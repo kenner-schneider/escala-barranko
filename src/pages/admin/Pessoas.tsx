@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdmin } from '../../components/AdminShell'
 import { CopyButton, Empty, ErrorMsg, Loading, Modal } from '../../components/ui'
 import { FIXED_KEYS, WEEKDAYS_PT, hhmm, monthOf, todaySP } from '../../lib/dates'
+import { shiftAbbr } from '../../lib/format'
 import { adminToken, callFn, supabase } from '../../lib/supabase'
 import type { Area, MonthlyCount, Person, Shift } from '../../lib/types'
 import { PhoneIcon, UserIcon } from '../../components/icons'
@@ -337,10 +338,10 @@ function PersonForm({ person, shifts, areas, onSave, onClose }: {
                   <th></th>
                   {shifts.map((s) => (
                     <th key={s.id}>
-                      <span className="dias-fixos-th">
+                      <span className="shift-th">
                         <span className="lbl" style={{ '--shift-color': s.color } as React.CSSProperties}
                           title={s.name}>
-                          {((s.label ?? '').trim() || s.name.charAt(0)).toUpperCase().slice(0, 3)}
+                          {shiftAbbr(s)}
                         </span>
                         <span className="hr">{hhmm(s.start_time)}–{hhmm(s.end_time)}</span>
                       </span>

@@ -267,6 +267,7 @@ input[type=checkbox]{accent-color:var(--accent)}
 .badge{display:inline-flex; align-items:center; gap:.2rem; font-family:var(--mono); font-size:.68rem; font-weight:600;
   padding:.14rem .5rem; border-radius:999px; background:var(--glass); border:1px solid var(--border-2); color:var(--muted); white-space:nowrap}
 .badge.over{background:var(--danger-soft); border-color:var(--danger); color:var(--chip-declined)}
+.badge.score{color:#f59e0b; border-color:#f59e0b}
 
 .chip{display:inline-flex; align-items:center; gap:.35rem; border-radius:999px; padding:.22rem .55rem; font-size:.79rem; font-weight:600;
   border:1.5px solid var(--swatch-border); background:var(--glass-2); color:var(--ink); margin:.12rem; max-width:100%}
@@ -444,6 +445,12 @@ table.balance tbody tr:last-child td{border-bottom:none}
 .pill-other-dot{position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%;
   background:var(--other-color, var(--dim)); box-shadow:0 0 0 1.5px var(--bg)}
 
+/* Pill "conflito" — pessoa em turno com HORÁRIO sobreposto neste dia. Não clicável. */
+.pill.conflict{position:relative; opacity:.45; border-style:dotted; border-color:var(--danger); filter:grayscale(.7); cursor:not-allowed}
+.pill.conflict:hover{opacity:.8; filter:grayscale(.3)}
+.pill-conflict-x{position:absolute; top:-6px; right:-4px; font-size:.75rem; font-weight:800; line-height:1;
+  color:var(--danger); text-shadow:0 0 2px var(--bg)}
+
 /* Modal: uma mensagem por escala, cada uma copiável */
 .area-msg + .area-msg{margin-top:1rem}
 .area-msg-head{display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem}
@@ -454,7 +461,19 @@ table.balance tbody tr:last-child td{border-bottom:none}
 .presenca-day + .presenca-day{margin-top:.9rem}
 .presenca-day h2{margin-bottom:.6rem}
 .presenca-shift + .presenca-shift{margin-top:.7rem}
-.presenca-shift-head{padding-left:.6rem; font-weight:700; color:var(--ink-strong); margin-bottom:.4rem}
+.presenca-shift-head{display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+  padding-left:.6rem; font-weight:700; color:var(--ink-strong); margin-bottom:.4rem}
+.presenca-shift-head .spacer{flex:1}
+.team-rate-label{font-weight:600; font-size:.75rem}
+
+/* Nota 1–5 em estrelas (equipe por serviço, avaliação individual) */
+.star-rate{display:inline-flex; gap:.05rem; align-items:center}
+.star-btn{display:inline-flex; align-items:center; justify-content:center; padding:.22rem;
+  background:none; border:none; cursor:pointer; color:var(--dim); border-radius:6px;
+  transition:color .12s, transform .12s}
+.star-btn:hover{color:#f59e0b; transform:scale(1.12)}
+.star-btn.on{color:#f59e0b}
+.star-btn:disabled{opacity:.5; cursor:not-allowed; transform:none}
 .presenca-row{display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; padding:.5rem .3rem; border-bottom:1px solid var(--border)}
 .presenca-row:last-child{border-bottom:none}
 .presenca-who{display:inline-flex; align-items:center; gap:.4rem; flex:1; min-width:180px}
@@ -469,13 +488,36 @@ table.balance tbody tr:last-child td{border-bottom:none}
 .pres-btn.faltou.active{background:var(--danger-soft); border-color:var(--danger); color:var(--chip-declined)}
 .presenca-row.declined .presenca-who .grow{text-decoration:line-through; opacity:.7}
 
-/* ---------- Cabeçalho de turno no cadastro CLT (dias fixos) - */
+/* Bloco de notas por presença (consumo) — expande dentro da própria linha */
+.pres-btn.nota.active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.presenca-note{flex-basis:100%; display:grid; gap:.45rem; padding:.15rem 0 .4rem}
+.presenca-note textarea{width:100%; min-height:56px; resize:vertical; padding:.5rem .6rem; border-radius:9px;
+  border:1px solid var(--border-2); background:var(--glass); color:var(--ink); font-family:var(--font); font-size:.85rem}
+.presenca-note textarea:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.presenca-note-foot{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
+.presenca-note-foot input{width:150px; padding:.45rem .55rem; border-radius:9px; border:1px solid var(--border-2);
+  background:var(--glass); color:var(--ink); font-family:var(--font); font-size:.85rem}
+.presenca-note-foot input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.presenca-note-foot .spacer{flex:1}
+
+/* ---------- Ranking e avaliação semanal ------------------- */
+.rank-window{display:inline-flex; align-items:center; gap:.45rem; font-size:.85rem}
+.rank-window select{padding:.45rem .55rem; border-radius:9px; border:1px solid var(--border-2);
+  background:var(--glass); color:var(--ink); font-family:var(--font); font-size:.85rem}
+.rank-table .rank-pos{font-family:var(--mono); font-weight:700; color:var(--ink-strong); width:2.2rem}
+.rank-table .rank-pos svg{color:#f59e0b}
+.eval-grid .star-btn{padding:.12rem}
+.eval-grid th{white-space:nowrap}
+
+/* ---------- Cabeçalho de turno (sigla + horário) — cadastro CLT e Relatórios - */
 .dias-fixos thead th{text-align:center; vertical-align:bottom}
-.dias-fixos-th{display:inline-flex; flex-direction:column; align-items:center; gap:.22rem}
-.dias-fixos-th .lbl{display:inline-flex; align-items:center; justify-content:center; min-width:28px; padding:.12rem .35rem;
+.shift-th{display:inline-flex; flex-direction:column; align-items:center; gap:.22rem}
+.shift-th .lbl{display:inline-flex; align-items:center; justify-content:center; min-width:28px; padding:.12rem .35rem;
   border-radius:8px; border:1.6px solid var(--shift-color); background:color-mix(in srgb, var(--shift-color) 18%, transparent);
   color:var(--ink-strong); font-family:var(--font); font-weight:700; font-size:.82rem; text-transform:none; letter-spacing:0}
-.dias-fixos-th .hr{font-family:var(--mono); font-size:.62rem; font-weight:500; text-transform:none; letter-spacing:0; color:var(--dim); white-space:nowrap}
+.shift-th .hr{font-family:var(--mono); font-size:.62rem; font-weight:500; text-transform:none; letter-spacing:0; color:var(--dim); white-space:nowrap}
+table.simple th.shift-col{text-align:center; vertical-align:bottom}
+table.simple td.shift-col{text-align:center}
 
 /* ---------- Elegibilidade: escalas em que a pessoa concorre - */
 .area-check{display:inline-flex; align-items:center; gap:.45rem; min-height:var(--tap); padding:.4rem .7rem; border-radius:10px;
