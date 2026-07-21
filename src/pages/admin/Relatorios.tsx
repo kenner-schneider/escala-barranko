@@ -17,7 +17,8 @@ type ReportMode = 'month' | 'week'
 
 export function Relatorios() {
   const { restaurant } = useAdmin()
-  const [mode, setMode] = useState<ReportMode>('month')
+  // Semanal é o padrão: o ritual do gestor (avaliar) é semanal; o mês é consulta eventual.
+  const [mode, setMode] = useState<ReportMode>('week')
   const [month, setMonth] = useState(monthOf(todaySP()))
   const [err, setErr] = useState('')
   const [exporting, setExporting] = useState(false)
@@ -92,6 +93,15 @@ export function Relatorios() {
   }
 
   if (q.isLoading) return <Loading />
+  if (q.isError) {
+    return (
+      <div>
+        <h1>Relatórios</h1>
+        <div className="schedule-toolbar">{modeSwitch}</div>
+        <ErrorMsg msg="Não foi possível carregar o relatório do mês." />
+      </div>
+    )
+  }
 
   const { counts = [], people = [], shifts = [], entries = [], notes = [] } = q.data ?? {}
   const personOf = new Map(people.map((p) => [p.id, p]))
@@ -160,7 +170,11 @@ export function Relatorios() {
               </tr>
             </thead>
             <tbody>
-              {[...counts].sort((a, b) => b.days_worked - a.days_worked).map((c) => {
+              {[...counts].sort((a, b) =>
+                b.days_worked - a.days_worked
+                || (personOf.get(a.person_id)?.display_name ?? '')
+                  .localeCompare(personOf.get(b.person_id)?.display_name ?? '')
+              ).map((c) => {
                 const p = personOf.get(c.person_id)
                 if (!p) return null
                 const over = p.type === 'free' && c.days_worked >= limitOf(p)
@@ -266,6 +280,15 @@ function SemanaView({ modeSwitch }: { modeSwitch: ReactNode }) {
   })
 
   if (q.isLoading) return <Loading />
+  // Sem isto, uma falha de carga vira "empty state" mentiroso ("cadastre critérios…").
+  if (q.isError) {
+    return (
+      <>
+        <div className="schedule-toolbar">{modeSwitch}</div>
+        <ErrorMsg msg="Não foi possível carregar a semana. Recarregue a página; se persistir, avise o suporte." />
+      </>
+    )
+  }
 
   const { people = [], shifts = [], criteria = [], entries = [], reviews = [], team = [] } = q.data ?? {}
   const reviewOf = new Map(reviews.map((r) => [r.person_id, r]))
@@ -372,7 +395,7 @@ function SemanaView({ modeSwitch }: { modeSwitch: ReactNode }) {
           <Empty msg="Ninguém trabalhou (escala publicada) nesta semana." />
         )}
         {criteria.length > 0 && workers.length > 0 && (
-          <div className="grid-scroll">
+          <div className="grid-scroll eval-scroll">
             <table className="simple eval-grid">
               <thead>
                 <tr>
@@ -390,13 +413,14 @@ function SemanaView({ modeSwitch }: { modeSwitch: ReactNode }) {
                   const media = review ? reviewScore(review, criteria) : null
                   return (
                     <tr key={p.id}>
-                      <td className="nowrap">
+                      <td className="nowrap eval-person">
                         {p.icon} {p.display_name}
                         {p.type === 'clt' && <span className="badge" style={{ marginLeft: '.35rem' }}>CLT</span>}
                       </td>
                       {criteria.map((c) => (
-                        <td key={c.id}>
-                          <StarRating size={13} value={scores[c.id] ?? null}
+                        // data-label vira o rótulo da linha quando a grade colapsa em cartões (≤640px)
+                        <td key={c.id} data-label={c.name}>
+                          <StarRating size={16} value={scores[c.id] ?? null}
                             disabled={saveReview.isPending}
                             label={`${c.name} — ${p.display_name}`}
                             onChange={(v) => {
@@ -407,7 +431,7 @@ function SemanaView({ modeSwitch }: { modeSwitch: ReactNode }) {
                             }} />
                         </td>
                       ))}
-                      <td>
+                      <td data-label="Média" className="eval-media">
                         {media != null
                           ? <span className="badge score"><StarIcon size={11} filled /> {fmtScore(media)}</span>
                           : <span className="muted">—</span>}

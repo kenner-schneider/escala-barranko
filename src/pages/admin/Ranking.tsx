@@ -76,8 +76,13 @@ export function Ranking() {
         </span>
       </div>
 
+      <p className="muted" style={{ marginTop: '.1rem' }}>
+        Avalie cada pessoa em <a href="#/relatorios"><strong>Relatórios → Semanal</strong></a> e
+        a equipe do turno na <a href="#/presenca"><strong>Presença</strong></a>. Este ranking é só leitura.
+      </p>
+
       {ranked.length === 0 && (
-        <Empty msg="Sem avaliações na janela escolhida. Avalie a equipe na Presença e as pessoas no Relatório semanal." />
+        <Empty msg="Sem avaliações na janela escolhida. Avalie a equipe na Presença e as pessoas em Relatórios → Semanal." />
       )}
 
       {ranked.length > 0 && (

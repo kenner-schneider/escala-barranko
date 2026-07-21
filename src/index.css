@@ -506,8 +506,11 @@ table.balance tbody tr:last-child td{border-bottom:none}
   background:var(--glass); color:var(--ink); font-family:var(--font); font-size:.85rem}
 .rank-table .rank-pos{font-family:var(--mono); font-weight:700; color:var(--ink-strong); width:2.2rem}
 .rank-table .rank-pos svg{color:#f59e0b}
-.eval-grid .star-btn{padding:.12rem}
 .eval-grid th{white-space:nowrap}
+.eval-grid .star-btn{padding:.18rem}
+/* Estrela sem nota tem que se ler como "clique aqui", não como célula vazia */
+.eval-grid .star-btn:not(.on){color:var(--muted)}
+.eval-grid .star-btn:not(.on):hover{color:#f59e0b}
 
 /* ---------- Cabeçalho de turno (sigla + horário) — cadastro CLT e Relatórios - */
 .dias-fixos thead th{text-align:center; vertical-align:bottom}
@@ -536,6 +539,30 @@ table.simple td.shift-col{text-align:center}
   .topnav{padding:.5rem .7rem; gap:.5rem}
   .brand-div,.brand .name span{display:none}
   .page{padding:.85rem .8rem 3rem}
+
+  /* Avaliação individual: a tabela vira um cartão por pessoa (uma linha por
+     critério). Sem isto a grade fica mais larga que a tela e as colunas da
+     direita somem atrás de um scroll horizontal sem nenhuma pista visual. */
+  .eval-scroll{overflow-x:visible}
+  table.eval-grid,table.eval-grid tbody,table.eval-grid tr,table.eval-grid td{display:block; width:100%}
+  table.eval-grid thead{display:none}
+  table.eval-grid tr{border:1px solid var(--border); border-radius:var(--radius);
+    background:var(--glass); padding:.1rem .75rem .35rem; margin-bottom:.6rem}
+  table.eval-grid td{border-bottom:none; padding:.25rem 0; font-size:.9rem;
+    display:flex; align-items:center; justify-content:space-between; gap:.2rem .75rem;
+    flex-wrap:wrap; min-height:46px}
+  table.eval-grid td+td{border-top:1px solid var(--border)}
+  /* Critério de nome longo + 5 estrelas grandes não cabem lado a lado num
+     celular estreito: deixa as estrelas caírem para a linha de baixo. */
+  table.eval-grid td::before{content:attr(data-label); color:var(--muted); text-align:left;
+    flex:1 1 auto; min-width:0; overflow-wrap:anywhere}
+  table.eval-grid td .star-rate{flex:0 0 auto}
+  table.eval-grid td.eval-person{justify-content:flex-start; gap:.35rem; min-height:0;
+    padding:.5rem 0 .35rem; font-weight:700; font-size:.95rem; color:var(--ink-strong)}
+  table.eval-grid td.eval-person::before{content:none}
+  /* Alvo de toque de verdade: 5 estrelas de 17px não se acerta com o dedo */
+  .eval-grid .star-btn{padding:.4rem; min-width:42px; min-height:42px}
+  .eval-grid .star-btn svg{width:22px; height:22px}
 }
 
 /* ---------- Movimento reduzido ----------------------------- */

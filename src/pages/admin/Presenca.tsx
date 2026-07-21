@@ -97,17 +97,30 @@ export function Presenca() {
     [teamQ.data],
   )
 
+  // Marcação otimista: o toque tem que responder na hora. Sem isto, cada clique
+  // espera o servidor e refaz o fetch — além de lento, é o que embaralhava a lista.
+  const entriesKey = ['entries', restaurant.id, range.start, range.end]
   const setStatus = useMutation({
     mutationFn: async (v: { id: string; status: 'convoked' | 'confirmed' | 'declined' }) => {
       const { error } = await supabase.from('schedule_entries')
         .update({ status: v.status, updated_by: profile.id }).eq('id', v.id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: entriesKey })
+      const prev = qc.getQueryData<ScheduleEntry[]>(entriesKey)
+      qc.setQueryData<ScheduleEntry[]>(entriesKey, (old) =>
+        old?.map((e) => (e.id === v.id ? { ...e, status: v.status } : e)))
+      return { prev }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(entriesKey, ctx.prev)
+      setErr('Não foi possível salvar a presença.')
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['entries'] })
       qc.invalidateQueries({ queryKey: ['counts'] })
     },
-    onError: () => setErr('Não foi possível salvar a presença.'),
   })
 
   const saveNote = useMutation({
@@ -153,12 +166,21 @@ export function Presenca() {
   })
 
   if (shiftsQ.isLoading || peopleQ.isLoading || areasQ.isLoading || entriesQ.isLoading) return <Loading />
+  if (shiftsQ.isError || peopleQ.isError || areasQ.isError || entriesQ.isError) {
+    return (
+      <div>
+        <h1>Presença</h1>
+        <ErrorMsg msg="Não foi possível carregar a semana. Recarregue a página." />
+      </div>
+    )
+  }
 
   // Só dias já passados (incluindo hoje) e apenas escalas publicadas (não rascunho).
   const pastDates: string[] = []
   for (let d = range.start; d <= range.end; d = addDays(d, 1)) {
     if (d <= today) pastDates.push(d)
   }
+  const nameOf = (e: ScheduleEntry) => personOf.get(e.person_id)?.display_name ?? ''
   const published = entries.filter((e) => e.status !== 'draft' && e.date <= today)
   const present = published.filter((e) => e.status === 'confirmed').length
   const absent = published.filter((e) => e.status === 'declined').length
@@ -198,7 +220,10 @@ export function Presenca() {
           <div className="card presenca-day" key={date}>
             <h2>{dayLabelPT(date)}</h2>
             {shifts.map((shift) => {
-              const rows = dayEntries.filter((e) => e.shift_id === shift.id)
+              // Ordem fixa por nome: o banco devolve na ordem física das linhas, que muda
+              // a cada UPDATE — sem este sort a lista se reordena a cada Foi/Faltou.
+              const rows = dayEntries.filter((e) => e.shift_id === shift.id).sort((a, b) =>
+                nameOf(a).localeCompare(nameOf(b)) || a.id.localeCompare(b.id))
               if (rows.length === 0) return null
               return (
                 <div className="presenca-shift" key={shift.id}>
@@ -234,13 +259,11 @@ export function Presenca() {
                         <div className="presenca-toggle">
                           <button
                             className={`pres-btn foi ${e.status === 'confirmed' ? 'active' : ''}`}
-                            disabled={setStatus.isPending}
                             onClick={() => setTo('confirmed')}>
                             <CheckIcon size={14} /> Foi
                           </button>
                           <button
                             className={`pres-btn faltou ${e.status === 'declined' ? 'active' : ''}`}
-                            disabled={setStatus.isPending}
                             onClick={() => setTo('declined')}>
                             <XIcon size={14} /> Faltou
                           </button>

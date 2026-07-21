@@ -292,6 +292,10 @@ export function Config() {
           Critérios objetivos usados na avaliação individual semanal (notas 1–5). O peso
           define quanto cada critério conta na média. O ranking ordena quem tem as melhores notas.
         </p>
+        <p className="muted" style={{ marginTop: '-.35rem' }}>
+          As notas de cada pessoa são dadas em <strong>Relatórios → Semanal</strong>;
+          a nota da equipe, na <strong>Presença</strong> (estrelas ao lado de cada turno).
+        </p>
         {criteria.length === 0 && (
           <div className="empty">Nenhum critério. Cadastre para habilitar avaliações e ranking (ex.: Pontualidade, Agilidade).</div>
         )}
