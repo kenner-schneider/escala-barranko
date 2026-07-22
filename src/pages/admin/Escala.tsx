@@ -129,11 +129,11 @@ export function Escala() {
       return data as MonthlyCount[]
     },
   })
-  // Score das avaliações (janela oficial do Config) — só busca no modo ranking.
+  // Score das avaliações (janela oficial do Config) — sempre carregado: a nota
+  // aparece ao lado do nome no painel e no Equilíbrio, em qualquer ordenação.
   const cutoff = windowCutoff(windowWeeksOf(restaurant), todaySP())
   const scoresQ = useQuery({
     queryKey: ['scores', restaurant.id, cutoff, teamWeightOf(restaurant)],
-    enabled: sortMode === 'rank',
     queryFn: async () =>
       computeScores(await fetchScoreInputs(restaurant.id, cutoff), teamWeightOf(restaurant)),
   })
@@ -519,9 +519,9 @@ export function Escala() {
                   return (
                     <DraggablePerson key={p.id} person={p}
                       onAdd={() => addEntry.mutate({ personId: p.id, date: selected.date, shiftId: selected.shiftId })}>
-                      {sortMode === 'rank' && scoreOf(p.id) != null && (
-                        <span className="badge score" title="Score das avaliações (individual + equipe)">
-                          <StarIcon size={11} filled /> {fmtScore(scoreOf(p.id)!)}
+                      {scoreOf(p.id) != null && (
+                        <span className="score-mini" title="Nota das avaliações (individual + equipe)">
+                          <StarIcon size={10} filled /> {fmtScore(scoreOf(p.id)!)}
                         </span>
                       )}
                       <span className={`badge ${over ? 'over' : ''}`}
@@ -557,7 +557,13 @@ export function Escala() {
               <div className="person-list">
                 {panel.clts.map((p) => (
                   <DraggablePerson key={p.id} person={p}
-                    onAdd={() => addEntry.mutate({ personId: p.id, date: selected.date, shiftId: selected.shiftId })} />
+                    onAdd={() => addEntry.mutate({ personId: p.id, date: selected.date, shiftId: selected.shiftId })}>
+                    {scoreOf(p.id) != null && (
+                      <span className="score-mini" title="Nota das avaliações (individual + equipe)">
+                        <StarIcon size={10} filled /> {fmtScore(scoreOf(p.id)!)}
+                      </span>
+                    )}
+                  </DraggablePerson>
                 ))}
               </div>
             </aside>
@@ -890,10 +896,10 @@ function BalanceView({ dates, shifts, people, availability, entries, areas, selA
               <tr key={p.id}>
                 <td className="nowrap">
                   {p.icon} {p.display_name}
-                  {sortMode === 'rank' && scoreOf(p.id) != null && (
-                    <span className="badge score" style={{ marginLeft: '.35rem' }}
-                      title="Score das avaliações (individual + equipe)">
-                      <StarIcon size={11} filled /> {fmtScore(scoreOf(p.id)!)}
+                  {scoreOf(p.id) != null && (
+                    <span className="score-mini" style={{ marginLeft: '.35rem' }}
+                      title="Nota das avaliações (individual + equipe)">
+                      <StarIcon size={10} filled /> {fmtScore(scoreOf(p.id)!)}
                     </span>
                   )}
                 </td>

@@ -506,6 +506,11 @@ table.balance tbody tr:last-child td{border-bottom:none}
   background:var(--glass); color:var(--ink); font-family:var(--font); font-size:.85rem}
 .rank-table .rank-pos{font-family:var(--mono); font-weight:700; color:var(--ink-strong); width:2.2rem}
 .rank-table .rank-pos svg{color:#f59e0b}
+/* Nota discreta ao lado do nome (painel da Escala e zebra do Equilíbrio):
+   estrela âmbar + número, sem caixa — informa sem competir com os badges. */
+.score-mini{display:inline-flex; align-items:center; gap:.18rem; white-space:nowrap;
+  font-family:var(--mono); font-size:.72rem; font-weight:600; color:var(--muted)}
+.score-mini svg{color:#f59e0b; flex:none}
 .eval-grid th{white-space:nowrap}
 .eval-grid .star-btn{padding:.18rem}
 /* Estrela sem nota tem que se ler como "clique aqui", não como célula vazia */
